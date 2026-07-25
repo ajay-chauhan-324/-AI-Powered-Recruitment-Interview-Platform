@@ -57,7 +57,7 @@ export const DEMO_DAY_APPOINTMENTS: DemoAppointment[] = [
     id: 'demo-day-appt-2',
     title: 'Consultation',
     attendee: 'M. Chen · m.chen@example.com',
-    hour: 11,
+    hour: 10,
     minute: 0,
     durationMinutes: 60,
     source: 'ai',
@@ -67,22 +67,25 @@ export const DEMO_DAY_APPOINTMENTS: DemoAppointment[] = [
     id: 'demo-day-appt-3',
     title: 'Follow-up',
     attendee: 'R. Singh · r.singh@example.com',
-    hour: 15,
-    minute: 30,
+    hour: 13,
+    minute: 0,
     durationMinutes: 30,
     source: 'public',
     status: 'cancelled',
   },
 ]
 
+// Kept within a 9:00 AM – 2:00 PM band (not spread across the full day) so
+// every fixture is comfortably visible above the AI ribbon without first
+// requiring the reviewer to scroll — see TimeCanvas's default scroll target.
 export const DEMO_DAY_BLOCKS: DemoBlock[] = [
-  { id: 'demo-day-block-1', label: 'Lunch', startHour: 13, startMinute: 0, endHour: 14, endMinute: 0 },
+  { id: 'demo-day-block-1', label: 'Lunch', startHour: 12, startMinute: 0, endHour: 13, endMinute: 0 },
 ]
 
 export const DEMO_DAY_AVAILABILITY: DemoAvailabilityTick[] = [
   { id: 'demo-day-avail-1', hour: 9, minute: 30, durationMinutes: 30 },
-  { id: 'demo-day-avail-2', hour: 14, minute: 0, durationMinutes: 60 },
-  { id: 'demo-day-avail-3', hour: 16, minute: 30, durationMinutes: 60 },
+  { id: 'demo-day-avail-2', hour: 11, minute: 0, durationMinutes: 60 },
+  { id: 'demo-day-avail-3', hour: 13, minute: 30, durationMinutes: 30 },
 ]
 
 /** dayIndex is 0 = Mon .. 6 = Sun, matching the week view's column order. */
@@ -122,11 +125,11 @@ export const DEMO_WEEK_APPOINTMENTS: DemoWeekAppointment[] = [
 ]
 
 export const DEMO_WEEK_BLOCKS: DemoWeekBlock[] = [
-  { id: 'demo-week-block-1', dayIndex: 4, label: 'Blocked', startHour: 13, startMinute: 0, endHour: 15, endMinute: 0 },
+  { id: 'demo-week-block-1', dayIndex: 4, label: 'Blocked', startHour: 11, startMinute: 0, endHour: 12, endMinute: 0 },
 ]
 
 export const DEMO_WEEK_AVAILABILITY: DemoWeekAvailability[] = [
-  { id: 'demo-week-avail-1', dayIndex: 1, hour: 14, minute: 0, durationMinutes: 60 },
+  { id: 'demo-week-avail-1', dayIndex: 1, hour: 11, minute: 30, durationMinutes: 60 },
   { id: 'demo-week-avail-2', dayIndex: 2, hour: 9, minute: 0, durationMinutes: 60 },
 ]
 

@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { getMonthGridCells } from '@/lib/dateContext'
-import { HOUR_ROW_HEIGHT } from '@/features/calendar/lib/layout'
+import { HOUR_ROW_HEIGHT, minutesToOffset } from '@/features/calendar/lib/layout'
 import {
   DEMO_DAY_APPOINTMENTS,
   DEMO_DAY_AVAILABILITY,
@@ -25,6 +25,12 @@ const HOUR_LABELS = Array.from({ length: 24 }, (_, hour) => {
 
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
+/** Both Day and Week are tall 24-hour columns — scroll to a sensible working-hours
+ * start on load instead of defaulting to midnight, so the demo content (and, on
+ * Day view, the current-time line) is visible without the reviewer having to
+ * scroll first. */
+const DEFAULT_SCROLL_HOUR = 7
+
 /**
  * Phase 1 visual foundation. The structural scaffold (hour rail, week
  * columns, month grid) is real; the appointments/availability/blocked-time
@@ -34,24 +40,45 @@ const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
  * logic).
  */
 export function TimeCanvas({ zoom }: { zoom: CanvasZoom }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const now = useMemo(() => new Date(), [])
+
+  useEffect(() => {
+    const node = scrollRef.current
+    if (!node) return
+
+    if (zoom === 'month') {
+      node.scrollTop = 0
+      return
+    }
+
+    const defaultTarget = minutesToOffset(DEFAULT_SCROLL_HOUR, 0)
+    // On Day view, also make sure "now" is never scrolled out of view — if it's
+    // earlier than the default start, scroll to just above it instead.
+    const nowTarget =
+      zoom === 'day' ? minutesToOffset(now.getHours(), now.getMinutes()) - 120 : defaultTarget
+    node.scrollTop = Math.max(0, Math.min(defaultTarget, nowTarget))
+  }, [zoom, now])
+
   return (
     <div
+      ref={scrollRef}
       role="region"
       aria-label={`${zoom} time canvas (visual foundation with demo data)`}
-      className="h-full overflow-y-auto pb-28"
+      className="h-full overflow-y-auto pb-36"
       tabIndex={0}
     >
       <DemoDataNotice />
-      {zoom === 'day' && <DayFoundation />}
+      {zoom === 'day' && <DayFoundation now={now} />}
       {zoom === 'week' && <WeekFoundation />}
-      {zoom === 'month' && <MonthFoundation />}
+      {zoom === 'month' && <MonthFoundation now={now} />}
     </div>
   )
 }
 
 function DemoDataNotice() {
   return (
-    <p className="mx-auto max-w-4xl px-4 pt-3 text-xs text-ink-700 sm:px-6">
+    <p className="mx-auto max-w-5xl px-4 pt-3 text-xs text-ink-700 sm:px-6">
       Demo data shown for visual review — not real appointments.
     </p>
   )
@@ -67,11 +94,9 @@ function HourGridLines() {
   )
 }
 
-function DayFoundation() {
-  const now = useMemo(() => new Date(), [])
-
+function DayFoundation({ now }: { now: Date }) {
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-4 sm:px-6">
+    <div className="mx-auto w-full max-w-5xl px-4 py-4 sm:px-6">
       <div className="flex">
         <div className="w-14 shrink-0 pr-2 text-right sm:w-16 sm:pr-3">
           {HOUR_LABELS.map((label) => (
@@ -140,8 +165,7 @@ function WeekFoundation() {
   )
 }
 
-function MonthFoundation() {
-  const now = useMemo(() => new Date(), [])
+function MonthFoundation({ now }: { now: Date }) {
   const cells = useMemo(() => getMonthGridCells(now), [now])
 
   return (
