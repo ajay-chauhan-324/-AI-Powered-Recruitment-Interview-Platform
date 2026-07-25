@@ -1,4 +1,6 @@
+import { useMemo } from 'react'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import { getDateContextLabel } from '@/lib/dateContext'
 import type { CanvasZoom } from '@/features/calendar/components/TimeCanvas'
 
 const ZOOM_OPTIONS: ReadonlyArray<{ value: CanvasZoom; label: string }> = [
@@ -10,16 +12,17 @@ const ZOOM_OPTIONS: ReadonlyArray<{ value: CanvasZoom; label: string }> = [
 interface HeaderProps {
   zoom: CanvasZoom
   onZoomChange: (zoom: CanvasZoom) => void
-  dateLabel: string
 }
 
 /**
  * Minimal contextual header — a thin strip, not a navbar. No primary nav
  * links live here; the only controls are context (what date range you're
- * looking at) and the zoom-level switch, since Day/Week/Month are zoom
- * levels of one time system rather than separate destinations.
+ * looking at, reflecting the current zoom level per CLAUDE.md §7) and the
+ * zoom-level switch itself.
  */
-export function Header({ zoom, onZoomChange, dateLabel }: HeaderProps) {
+export function Header({ zoom, onZoomChange }: HeaderProps) {
+  const dateLabel = useMemo(() => getDateContextLabel(zoom, new Date()), [zoom])
+
   return (
     <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-hairline bg-paper-50 px-4 sm:h-14 sm:px-6">
       <div className="flex min-w-0 items-baseline gap-3">

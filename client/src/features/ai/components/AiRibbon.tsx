@@ -14,12 +14,9 @@ export function AiRibbon() {
   const panelId = useId()
 
   return (
-    <div className="shrink-0 border-t border-hairline bg-paper-50">
+    <div className="overflow-hidden rounded-lg border border-hairline bg-paper-50 shadow-panel">
       {expanded && (
-        <div
-          id={panelId}
-          className="mx-auto max-w-2xl px-4 pb-2 pt-4 sm:px-6"
-        >
+        <div id={panelId} className="border-b border-hairline px-4 pb-2 pt-3 sm:px-5">
           <div aria-live="polite" className="sr-only">
             {/* Phase 7 will stream AI responses into this live region. */}
           </div>
@@ -33,7 +30,7 @@ export function AiRibbon() {
           event.preventDefault()
           // No submission behavior yet — visual shell only (Phase 1).
         }}
-        className="mx-auto flex max-w-2xl items-center gap-2 px-4 py-3 sm:px-6"
+        className="flex items-center gap-2 px-4 py-3 sm:px-5"
       >
         <span aria-hidden="true" className="shrink-0 text-amber-600">
           ⌁

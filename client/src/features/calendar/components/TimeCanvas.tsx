@@ -1,3 +1,20 @@
+import { useMemo } from 'react'
+import { getMonthGridCells } from '@/lib/dateContext'
+import { HOUR_ROW_HEIGHT } from '@/features/calendar/lib/layout'
+import {
+  DEMO_DAY_APPOINTMENTS,
+  DEMO_DAY_AVAILABILITY,
+  DEMO_DAY_BLOCKS,
+  DEMO_MONTH_DENSITY,
+  DEMO_WEEK_APPOINTMENTS,
+  DEMO_WEEK_AVAILABILITY,
+  DEMO_WEEK_BLOCKS,
+} from '@/features/calendar/fixtures/demoCalendarData'
+import { AppointmentTag } from './AppointmentTag'
+import { BlockedRange } from './BlockedRange'
+import { AvailabilityTick } from './AvailabilityTick'
+import { NowIndicator } from './NowIndicator'
+
 export type CanvasZoom = 'day' | 'week' | 'month'
 
 const HOUR_LABELS = Array.from({ length: 24 }, (_, hour) => {
@@ -9,21 +26,22 @@ const HOUR_LABELS = Array.from({ length: 24 }, (_, hour) => {
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 /**
- * Phase 1 foundation only: a static, non-interactive preview of the Time
- * Canvas surface at each zoom level. No real appointment, availability, or
- * blocked-time data exists yet (that's Phase 2 onward) — this establishes
- * the visual/structural scaffold (hour rail, week columns, month grid) that
- * later phases render real data into, without inventing calendar logic
- * (date math, navigation, "today") ahead of Phase 5.
+ * Phase 1 visual foundation. The structural scaffold (hour rail, week
+ * columns, month grid) is real; the appointments/availability/blocked-time
+ * rendered on it are static DEMO fixtures (see fixtures/demoCalendarData.ts)
+ * standing in for real domain data until Phase 2 onward. The current-time
+ * line is the one genuinely live element (a display concern, not booking
+ * logic).
  */
 export function TimeCanvas({ zoom }: { zoom: CanvasZoom }) {
   return (
     <div
       role="region"
-      aria-label={`${zoom} time canvas (foundation preview)`}
-      className="h-full overflow-y-auto"
+      aria-label={`${zoom} time canvas (visual foundation with demo data)`}
+      className="h-full overflow-y-auto pb-28"
       tabIndex={0}
     >
+      <DemoDataNotice />
       {zoom === 'day' && <DayFoundation />}
       {zoom === 'week' && <WeekFoundation />}
       {zoom === 'month' && <MonthFoundation />}
@@ -31,35 +49,59 @@ export function TimeCanvas({ zoom }: { zoom: CanvasZoom }) {
   )
 }
 
-function CanvasNote({ children }: { children: React.ReactNode }) {
+function DemoDataNotice() {
   return (
-    <p className="pointer-events-none sticky top-1/2 z-10 mx-auto max-w-xs -translate-y-1/2 text-center text-sm text-ink-700">
-      {children}
+    <p className="mx-auto max-w-4xl px-4 pt-3 text-xs text-ink-700 sm:px-6">
+      Demo data shown for visual review — not real appointments.
     </p>
   )
 }
 
-function DayFoundation() {
+function HourGridLines() {
   return (
-    <div className="relative mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <CanvasNote>Appointments, availability, and blocked time will render on this rail.</CanvasNote>
-      <ol className="relative">
-        {HOUR_LABELS.map((label) => (
-          <li key={label} className="flex h-16 items-start gap-4 border-t border-hairline first:border-t-0">
-            <span className="w-12 shrink-0 pt-1 font-mono text-xs tabular-nums text-ink-700">{label}</span>
-            <span className="w-full" />
-          </li>
-        ))}
-      </ol>
+    <div>
+      {HOUR_LABELS.map((label) => (
+        <div key={label} className="border-t border-hairline first:border-t-0" style={{ height: HOUR_ROW_HEIGHT }} />
+      ))}
+    </div>
+  )
+}
+
+function DayFoundation() {
+  const now = useMemo(() => new Date(), [])
+
+  return (
+    <div className="mx-auto w-full max-w-4xl px-4 py-4 sm:px-6">
+      <div className="flex">
+        <div className="w-14 shrink-0 pr-2 text-right sm:w-16 sm:pr-3">
+          {HOUR_LABELS.map((label) => (
+            <div key={label} className="font-mono text-xs tabular-nums text-ink-700" style={{ height: HOUR_ROW_HEIGHT }}>
+              <span className="block pt-1">{label}</span>
+            </div>
+          ))}
+        </div>
+        <div className="relative flex-1 border-l border-hairline">
+          <HourGridLines />
+          {DEMO_DAY_BLOCKS.map((block) => (
+            <BlockedRange key={block.id} block={block} />
+          ))}
+          {DEMO_DAY_AVAILABILITY.map((tick) => (
+            <AvailabilityTick key={tick.id} tick={tick} />
+          ))}
+          {DEMO_DAY_APPOINTMENTS.map((appointment) => (
+            <AppointmentTag key={appointment.id} appointment={appointment} />
+          ))}
+          <NowIndicator now={now} />
+        </div>
+      </div>
     </div>
   )
 }
 
 function WeekFoundation() {
   return (
-    <div className="relative mx-auto grid h-full max-w-5xl grid-cols-[3rem_repeat(7,1fr)] px-4 sm:px-6">
-      <CanvasNote>Week view: seven columns on one shared time scale.</CanvasNote>
-      <div className="col-span-8 grid grid-cols-subgrid border-b border-hairline pb-2 pt-4">
+    <div className="mx-auto flex w-full flex-col px-4 py-4 sm:px-6">
+      <div className="grid grid-cols-[3.5rem_repeat(7,1fr)] border-b border-hairline pb-2 sm:grid-cols-[4rem_repeat(7,1fr)]">
         <span aria-hidden="true" />
         {WEEKDAY_LABELS.map((day) => (
           <span key={day} className="text-center text-xs font-medium uppercase tracking-wide text-ink-700">
@@ -67,18 +109,29 @@ function WeekFoundation() {
           </span>
         ))}
       </div>
-      <div className="col-span-8 grid grid-cols-subgrid">
-        <div className="flex flex-col">
-          {HOUR_LABELS.filter((_, i) => i % 2 === 0).map((label) => (
-            <span key={label} className="h-12 border-t border-hairline pt-1 font-mono text-xs tabular-nums text-ink-700 first:border-t-0">
-              {label}
-            </span>
+      <div className="grid grid-cols-[3.5rem_repeat(7,1fr)] sm:grid-cols-[4rem_repeat(7,1fr)]">
+        <div className="pr-2 text-right sm:pr-3">
+          {HOUR_LABELS.map((label, index) => (
+            <div
+              key={label}
+              className="border-t border-hairline first:border-t-0 font-mono text-xs tabular-nums text-ink-700"
+              style={{ height: HOUR_ROW_HEIGHT }}
+            >
+              {index % 2 === 0 && <span className="block pt-1">{label}</span>}
+            </div>
           ))}
         </div>
-        {WEEKDAY_LABELS.map((day) => (
-          <div key={day} className="border-l border-hairline">
-            {HOUR_LABELS.filter((_, i) => i % 2 === 0).map((label) => (
-              <div key={label} className="h-12 border-t border-hairline first:border-t-0" />
+        {WEEKDAY_LABELS.map((_, dayIndex) => (
+          <div key={dayIndex} className="relative border-l border-hairline">
+            <HourGridLines />
+            {DEMO_WEEK_BLOCKS.filter((block) => block.dayIndex === dayIndex).map((block) => (
+              <BlockedRange key={block.id} block={block} />
+            ))}
+            {DEMO_WEEK_AVAILABILITY.filter((tick) => tick.dayIndex === dayIndex).map((tick) => (
+              <AvailabilityTick key={tick.id} tick={tick} showLabel={false} />
+            ))}
+            {DEMO_WEEK_APPOINTMENTS.filter((appointment) => appointment.dayIndex === dayIndex).map((appointment) => (
+              <AppointmentTag key={appointment.id} appointment={appointment} compact />
             ))}
           </div>
         ))}
@@ -88,19 +141,50 @@ function WeekFoundation() {
 }
 
 function MonthFoundation() {
-  const cells = Array.from({ length: 42 }, (_, index) => index)
+  const now = useMemo(() => new Date(), [])
+  const cells = useMemo(() => getMonthGridCells(now), [now])
+
   return (
-    <div className="relative mx-auto flex h-full max-w-4xl flex-col px-4 py-6 sm:px-6">
-      <CanvasNote>Month view: density indicators per day, expanding into Day view.</CanvasNote>
+    <div className="mx-auto w-full px-4 py-4 sm:px-6">
       <div className="grid grid-cols-7 gap-px overflow-hidden rounded-md border border-hairline bg-paper-200">
         {WEEKDAY_LABELS.map((day) => (
           <div key={day} className="bg-paper-100 py-1 text-center text-xs font-medium uppercase tracking-wide text-ink-700">
             {day}
           </div>
         ))}
-        {cells.map((cell) => (
-          <div key={cell} className="aspect-square bg-paper-50" />
-        ))}
+        {cells.map(({ date, inCurrentMonth }, index) => {
+          const density = inCurrentMonth
+            ? DEMO_MONTH_DENSITY.find((entry) => entry.dayOfMonth === date.getDate())
+            : undefined
+          const cellLabel = date.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })
+          return (
+            <div
+              key={index}
+              role="group"
+              aria-label={
+                density
+                  ? `${cellLabel}, ${density.tickCount} appointment${density.tickCount === 1 ? '' : 's'}${density.overflow ? `, plus ${density.overflow} more` : ''}`
+                  : cellLabel
+              }
+              className={
+                'flex min-h-20 flex-col gap-1 p-1.5 sm:min-h-28 sm:p-2 ' +
+                (inCurrentMonth ? 'bg-paper-50' : 'bg-paper-50/50')
+              }
+            >
+              <span className={'font-mono text-xs tabular-nums ' + (inCurrentMonth ? 'text-ink-900' : 'text-ink-300')}>
+                {date.getDate()}
+              </span>
+              {density && (
+                <div className="flex flex-wrap items-center gap-1">
+                  {Array.from({ length: density.tickCount }).map((_, tickIndex) => (
+                    <span key={tickIndex} aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-ink-900" />
+                  ))}
+                  {density.overflow && <span className="text-xs text-ink-700">+{density.overflow} more</span>}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
