@@ -4,7 +4,7 @@ AI-powered smart appointment booking system. The full engineering and design spe
 
 ## Status
 
-**Phase 1 — Foundation** complete: client/server scaffolding, design tokens, and the static app shell. No database, authentication, booking logic, availability logic, AI integration, real-time sync, or admin functionality exists yet — those are later phases (see CLAUDE.md §28).
+**Phase 1 — Foundation** and **Phase 2 — Domain and Database** complete: client/server scaffolding, design tokens, the static app shell, MongoDB connection, and the Appointment/ScheduleConfig/BlockedSlot models with Zod validation. No authentication, booking logic, availability logic, AI integration, real-time sync, or admin functionality exists yet — those are later phases (see CLAUDE.md §28).
 
 ## Structure
 
@@ -36,6 +36,20 @@ npm run dev      # http://localhost:5173
 ```
 
 The server's `CLIENT_ORIGIN` env var must match the client's dev URL for CORS to work.
+
+## Local MongoDB
+
+Conflict-safe booking (CLAUDE.md §13) relies on multi-document transactions, which require a **replica set** — a standalone `mongod` will not work. In production, use MongoDB Atlas (a replica set by default) or a managed replica set; `MONGODB_URI` in `server/.env` just needs to point at one.
+
+For local development, this project runs its own **dedicated** single-node replica-set instance on port 27018, separate from any other MongoDB install on the machine (a shared/standalone MongoDB on the default port 27017 is left untouched):
+
+```
+mongod --replSet rs0 --port 27018 --dbpath .mongo-data/db --bind_ip 127.0.0.1 --logpath .mongo-data/logs/mongod.log --logappend
+# first time only, in another terminal:
+mongo --port 27018 --eval "rs.initiate()"
+```
+
+`server/.env.example`'s `MONGODB_URI` already points at `mongodb://127.0.0.1:27018/booking_system?replicaSet=rs0` to match. `.mongo-data/` is gitignored.
 
 ## Verification
 

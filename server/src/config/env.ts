@@ -10,6 +10,10 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
   CLIENT_ORIGIN: z.url().default('http://localhost:5173'),
+  // Must point at a replica set (directly or via Atlas, which is a replica set by
+  // default) — conflict-safe booking (CLAUDE.md §13) relies on multi-document
+  // transactions, which a standalone mongod does not support.
+  MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
 })
 
 const parsed = envSchema.safeParse(process.env)

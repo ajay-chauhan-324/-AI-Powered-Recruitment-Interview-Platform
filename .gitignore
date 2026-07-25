@@ -32,3 +32,6 @@ npm-debug.log*
 
 # Vite / misc
 *.local
+
+# Local dev MongoDB data (project-dedicated replica-set instance, see README)
+.mongo-data/
