@@ -1,0 +1,75 @@
+/**
+ * The Ledger — Intelligent Time Canvas
+ * Design tokens (source: CLAUDE.md §6, plus the approved detailed design
+ * specification for values CLAUDE.md leaves implicit — radius scale, shadow
+ * definitions, and the hairline border color, all derived from the ink-900
+ * token so they stay in the same palette family).
+ *
+ * Contrast notes (verified against WCAG AA, see Phase 1 report):
+ * - ink-500 on paper-50/100 is 4.44:1 — reserve for large text (>=18px) or
+ *   decorative/non-essential labels, not small body/metadata text.
+ * - ink-300 is decorative only (dividers, hatch strokes) — never text.
+ * - amber-600 as small text or as a text-bearing button fill falls short of
+ *   4.5:1 (4.14–4.43:1) — use it for borders, icons, focus rings, and accent
+ *   bars; pair actual button/link text with ink-900 on amber-100 instead.
+ */
+
+@theme {
+  /* Colors — paper/ink base */
+  --color-paper-50: #FBF7F0;
+  --color-paper-100: #F4EDE2;
+  --color-paper-200: #EBE1D2;
+
+  --color-ink-900: #211D17;
+  --color-ink-700: #4A4238;
+  --color-ink-500: #7A7267;
+  --color-ink-300: #B8AF9E;
+
+  /* Colors — accent */
+  --color-amber-600: #B5622A;
+  --color-amber-500: #C97A3F;
+  --color-amber-100: #F2DFC9;
+
+  /* Colors — status (never the sole signal, see components) */
+  --color-available: #3F7A5C;
+  --color-conflict: #B23B2E;
+  --color-conflict-tint: #F6DCD8;
+
+  /* Colors — structural */
+  --color-hairline: rgb(33 29 23 / 12%);
+  --color-canvas-focus-scrim: rgb(33 29 23 / 8%);
+
+  /* Typography */
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 18px;
+  --text-base: 15px;
+  --text-base--line-height: 22px;
+  --text-md: 17px;
+  --text-md--line-height: 24px;
+  --text-lg: 20px;
+  --text-lg--line-height: 28px;
+  --text-xl: 28px;
+  --text-xl--line-height: 34px;
+  --text-2xl: 36px;
+  --text-2xl--line-height: 42px;
+
+  /* Spacing: default Tailwind scale (0.25rem/4px base) already produces
+     2, 4, 8, 12, 16, 24, 32, 48, 64, 96px at 0.5/1/2/3/4/6/8/12/16/24 — no
+     override needed, this is documented rather than redefined. */
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  /* Shadow — flat paper elevation only, no glass/blur effects */
+  --shadow-tag: 0 1px 2px rgb(33 29 23 / 8%), 0 1px 1px rgb(33 29 23 / 4%);
+  --shadow-panel: 0 4px 16px rgb(33 29 23 / 10%);
+  --shadow-sheet: 0 -4px 24px rgb(33 29 23 / 14%);
+}
