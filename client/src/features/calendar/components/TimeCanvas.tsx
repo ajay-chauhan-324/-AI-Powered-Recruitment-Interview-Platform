@@ -190,9 +190,12 @@ function DayFoundation({
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-4 sm:px-6">
       {isEmpty && (
-        <p className="pointer-events-none sticky top-1/2 z-10 mx-auto max-w-xs -translate-y-1/2 text-center text-sm text-ink-700">
-          Nothing scheduled for this day.
-        </p>
+        <div className="pointer-events-none sticky top-1/2 z-10 mx-auto flex max-w-xs -translate-y-1/2 flex-col items-center gap-1.5 text-center">
+          <span aria-hidden="true" className="text-sm text-amber-600">
+            ⌁
+          </span>
+          <p className="text-sm text-ink-700">Nothing scheduled for this day.</p>
+        </div>
       )}
       <div className="flex">
         <div className="w-14 shrink-0 pr-2 text-right sm:w-16 sm:pr-3">
@@ -262,13 +265,24 @@ function WeekFoundation({
 
   return (
     <div className="mx-auto flex w-full flex-col px-4 py-4 sm:px-6">
-      <div className="grid grid-cols-[3.5rem_repeat(7,1fr)] border-b border-hairline pb-2 sm:grid-cols-[4rem_repeat(7,1fr)]">
+      <div className="sticky top-0 z-10 grid grid-cols-[3.5rem_repeat(7,1fr)] border-b border-hairline bg-paper-50 pb-2 sm:grid-cols-[4rem_repeat(7,1fr)]">
         <span aria-hidden="true" />
-        {WEEKDAY_LABELS.map((day) => (
-          <span key={day} className="text-center text-xs font-medium uppercase tracking-wide text-ink-700">
-            {day}
-          </span>
-        ))}
+        {dayBounds.map((bounds, dayIndex) => {
+          const isToday = isSameLocalDay(bounds.start, new Date())
+          return (
+            <div key={dayIndex} className="flex flex-col items-center gap-0.5 pt-1">
+              <span className="text-xs font-medium uppercase tracking-wide text-ink-700">{WEEKDAY_LABELS[dayIndex]}</span>
+              <span
+                className={
+                  'flex h-6 w-6 items-center justify-center rounded-full font-mono text-xs tabular-nums ' +
+                  (isToday ? 'bg-amber-600 font-semibold text-paper-50' : 'text-ink-900')
+                }
+              >
+                {bounds.start.getDate()}
+              </span>
+            </div>
+          )
+        })}
       </div>
       <div className="grid grid-cols-[3.5rem_repeat(7,1fr)] sm:grid-cols-[4rem_repeat(7,1fr)]">
         <div className="pr-2 text-right sm:pr-3">
@@ -346,7 +360,10 @@ function MonthFoundation({
     <div className="mx-auto w-full px-4 py-4 sm:px-6">
       <div className="grid grid-cols-7 gap-px overflow-hidden rounded-md border border-hairline bg-paper-200">
         {WEEKDAY_LABELS.map((day) => (
-          <div key={day} className="bg-paper-100 py-1 text-center text-xs font-medium uppercase tracking-wide text-ink-700">
+          <div
+            key={day}
+            className="sticky top-0 z-10 bg-paper-100 py-1 text-center text-xs font-medium uppercase tracking-wide text-ink-700"
+          >
             {day}
           </div>
         ))}
@@ -356,6 +373,7 @@ function MonthFoundation({
           const tickCount = Math.min(count, 3)
           const overflow = count > 3 ? count - 3 : 0
           const cellLabel = date.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })
+          const isToday = isSameLocalDay(date, new Date())
 
           return (
             <button
@@ -364,8 +382,8 @@ function MonthFoundation({
               onClick={() => onSelectDay(date)}
               aria-label={
                 count > 0
-                  ? `${cellLabel}, ${count} appointment${count === 1 ? '' : 's'}. View day.`
-                  : `${cellLabel}. View day.`
+                  ? `${cellLabel}${isToday ? ' (today)' : ''}, ${count} appointment${count === 1 ? '' : 's'}. View day.`
+                  : `${cellLabel}${isToday ? ' (today)' : ''}. View day.`
               }
               className={
                 'flex min-h-20 flex-col gap-1 p-1.5 text-left hover:bg-amber-100/40 focus-visible:relative focus-visible:z-10 sm:min-h-28 sm:p-2 ' +
@@ -374,8 +392,19 @@ function MonthFoundation({
             >
               {/* Adjacent-month days are de-emphasized via the muted background above, not
                   via low-contrast text — the day number itself is real content and must
-                  stay legible (ink-300 on paper-50 is 2.03:1, well under WCAG AA). */}
-              <span className={'font-mono text-xs tabular-nums ' + (inCurrentMonth ? 'text-ink-900' : 'text-ink-700')}>
+                  stay legible (ink-300 on paper-50 is 2.03:1, well under WCAG AA). Today is
+                  marked with a filled badge (shape + weight, not color alone) so it reads
+                  the same way even without color vision. */}
+              <span
+                className={
+                  'flex h-6 w-6 items-center justify-center rounded-full font-mono text-xs tabular-nums ' +
+                  (isToday
+                    ? 'bg-amber-600 font-semibold text-paper-50'
+                    : inCurrentMonth
+                      ? 'text-ink-900'
+                      : 'text-ink-700')
+                }
+              >
                 {date.getDate()}
               </span>
               {count > 0 && (

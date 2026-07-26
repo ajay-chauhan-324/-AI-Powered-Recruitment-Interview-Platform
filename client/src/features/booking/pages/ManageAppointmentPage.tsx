@@ -9,6 +9,7 @@ import {
 } from '@/features/booking/api/bookingApi'
 import { ApiError } from '@/lib/apiClient'
 import { formatClockFromDate } from '@/features/calendar/lib/layout'
+import { StandaloneCard } from '@/components/layout/StandaloneCard'
 
 const RESCHEDULE_SEARCH_DAYS = 14
 
@@ -155,12 +156,5 @@ export function ManageAppointmentPage() {
 }
 
 function PageShell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-dvh items-start justify-center bg-paper-50 px-4 py-12 sm:items-center">
-      <div className="w-full max-w-md rounded-lg border border-hairline bg-paper-50 p-6 shadow-panel">
-        <span className="font-mono text-sm font-medium tracking-wide text-ink-900">The Ledger</span>
-        <div className="mt-4">{children}</div>
-      </div>
-    </div>
-  )
+  return <StandaloneCard title="The Ledger">{children}</StandaloneCard>
 }

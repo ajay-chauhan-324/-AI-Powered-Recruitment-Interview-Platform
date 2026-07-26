@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchAdminAppointments, fetchAdminBlockedSlots, adminLogout, type AdminAppointment } from '@/features/admin/api/adminApi'
@@ -8,7 +8,7 @@ import { AppointmentTag } from '@/features/calendar/components/AppointmentTag'
 import { BlockedRange } from '@/features/calendar/components/BlockedRange'
 import { NowIndicator } from '@/features/calendar/components/NowIndicator'
 import { getDayRange, addPeriod, isSameLocalDay } from '@/lib/dateContext'
-import { HOUR_ROW_HEIGHT, clipRangeToDay, offsetToTimeOfDay } from '@/features/calendar/lib/layout'
+import { HOUR_ROW_HEIGHT, clipRangeToDay, minutesToOffset, offsetForDate, offsetToTimeOfDay } from '@/features/calendar/lib/layout'
 import { computeDefaultBookingStart } from '@/features/booking/constants'
 
 const HOUR_LABELS = Array.from({ length: 24 }, (_, hour) => {
@@ -16,6 +16,10 @@ const HOUR_LABELS = Array.from({ length: 24 }, (_, hour) => {
   const displayHour = hour % 12 === 0 ? 12 : hour % 12
   return `${displayHour} ${period}`
 })
+
+// Matches the public Day view (TimeCanvas.tsx) — without this, the admin canvas opens
+// scrolled to midnight instead of near the current time / working hours.
+const DEFAULT_SCROLL_HOUR = 7
 
 /**
  * Admin-only Day view: full appointment detail, all statuses (including
@@ -34,6 +38,15 @@ export function AdminCalendarPage() {
 
   const range = useMemo(() => getDayRange(anchorDate), [anchorDate])
   const now = useMemo(() => new Date(), [])
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const node = scrollRef.current
+    if (!node) return
+    const defaultTarget = minutesToOffset(DEFAULT_SCROLL_HOUR, 0)
+    const nowTarget = isSameLocalDay(anchorDate, now) ? offsetForDate(now) - 120 : defaultTarget
+    node.scrollTop = Math.max(0, Math.min(defaultTarget, nowTarget))
+  }, [anchorDate, now])
 
   // The keyboard-accessible "New appointment" button's default time should reflect the day
   // being viewed, not always "now" — an admin who's navigated to next week and hits this
@@ -135,7 +148,7 @@ export function AdminCalendarPage() {
         </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-5xl px-4 py-4 sm:px-6">
           <div className="flex">
             <div className="w-14 shrink-0 pr-2 text-right sm:w-16 sm:pr-3">

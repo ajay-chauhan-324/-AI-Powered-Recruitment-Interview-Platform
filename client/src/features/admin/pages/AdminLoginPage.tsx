@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminLogin } from '@/features/admin/api/adminApi'
 import { ApiError } from '@/lib/apiClient'
+import { StandaloneCard } from '@/components/layout/StandaloneCard'
 
 export function AdminLoginPage() {
   const navigate = useNavigate()
@@ -29,14 +30,11 @@ export function AdminLoginPage() {
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-paper-50 px-4">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-lg border border-hairline bg-paper-50 p-6 shadow-panel"
-      >
-        <span className="font-mono text-sm font-medium tracking-wide text-ink-900">The Ledger — Admin</span>
+    <StandaloneCard title="The Ledger — Admin">
+      <form onSubmit={handleSubmit}>
+        <p className="mb-5 text-sm text-ink-700">Sign in to manage appointments, schedules, and blocked time.</p>
 
-        <label className="mt-6 flex flex-col gap-1 text-sm text-ink-700">
+        <label className="flex flex-col gap-1 text-sm text-ink-700">
           Email
           <input
             required
@@ -71,6 +69,6 @@ export function AdminLoginPage() {
           {mutation.isPending ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
-    </div>
+    </StandaloneCard>
   )
 }

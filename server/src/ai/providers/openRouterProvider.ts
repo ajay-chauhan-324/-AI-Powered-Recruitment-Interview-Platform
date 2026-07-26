@@ -10,7 +10,12 @@ import {
 } from './types.js'
 
 const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions'
-const REQUEST_TIMEOUT_MS = 20_000
+// The configured free-tier model measured at ~5-17s per completion in live testing — a
+// tool-calling conversation needs 2+ of these round trips, so a tight per-call timeout was
+// the actual cause of an intermittent "AI provider returned an empty response" failure seen
+// during testing, not a real hang. 45s gives real (if slow) responses room to land while
+// still bounding a truly stuck request.
+const REQUEST_TIMEOUT_MS = 45_000
 
 interface OpenRouterToolCall {
   id: string

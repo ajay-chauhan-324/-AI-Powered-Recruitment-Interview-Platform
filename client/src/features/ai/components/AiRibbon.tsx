@@ -45,6 +45,13 @@ export function AiRibbon() {
       }
     },
     onError: (error: unknown) => {
+      // Upstream provider failures (502/503) carry a technical message meant for logs, not a
+      // person mid-conversation — show a friendly, actionable one instead. Validation errors
+      // (400) are specific to what was actually typed and stay useful to show as-is.
+      if (error instanceof ApiError && (error.status === 502 || error.status === 503)) {
+        setErrorMessage("The assistant is having trouble reaching its AI provider right now — please try again in a moment.")
+        return
+      }
       setErrorMessage(error instanceof ApiError ? error.message : 'The assistant is unavailable right now.')
     },
   })
@@ -61,15 +68,45 @@ export function AiRibbon() {
     mutation.mutate(nextHistory)
   }
 
+  function sendPrompt(content: string) {
+    if (mutation.isPending) return
+    const nextHistory: ConversationTurn[] = [...history, { role: 'user', content }]
+    setHistory(nextHistory)
+    setDraft('')
+    setErrorMessage(null)
+    mutation.mutate(nextHistory)
+  }
+
   return (
     <div className="overflow-hidden rounded-lg border border-hairline bg-paper-50 shadow-panel">
       {expanded && (
-        <div id={panelId} className="border-b border-hairline px-4 pb-2 pt-3 sm:px-5">
-          <div ref={logRef} role="log" aria-live="polite" className="flex max-h-64 flex-col gap-2 overflow-y-auto pb-2">
-            {history.length === 0 && !mutation.isPending && (
-              <p className="text-sm text-ink-500">Try “book me tomorrow at 3pm” or “is Friday morning free?”</p>
-            )}
-            {history.map((turn, index) => (
+        <div id={panelId} className="border-b border-hairline bg-paper-100/60">
+          <div className="flex items-center gap-1.5 px-4 pt-2.5 sm:px-5">
+            <span aria-hidden="true" className="text-xs text-amber-600">
+              ⌁
+            </span>
+            <span className="text-xs font-medium uppercase tracking-wide text-ink-700">Ledger Assistant</span>
+          </div>
+          <div className="px-4 pb-2 pt-1.5 sm:px-5">
+            <div ref={logRef} role="log" aria-live="polite" className="flex max-h-64 flex-col gap-2 overflow-y-auto pb-2">
+              {history.length === 0 && !mutation.isPending && (
+                <div className="flex flex-col gap-2 py-1">
+                  <p className="text-sm text-ink-700">Ask in plain language — I'll check availability and handle the rest.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['Book me tomorrow at 3pm', 'Is Friday morning free?'].map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => sendPrompt(suggestion)}
+                        className="rounded-pill border border-hairline bg-paper-50 px-3 py-1.5 text-xs text-ink-700 hover:border-amber-600/40 hover:text-ink-900"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {history.map((turn, index) => (
               <p
                 key={index}
                 className={
@@ -97,6 +134,7 @@ export function AiRibbon() {
               Manage link: <span className="break-all font-mono">{`${window.location.origin}/manage/${manageToken}`}</span>
             </p>
           )}
+          </div>
         </div>
       )}
       <form onSubmit={handleSubmit} className="flex items-center gap-2 px-4 py-3 sm:px-5">
