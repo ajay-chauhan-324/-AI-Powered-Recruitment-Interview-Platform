@@ -15,3 +15,42 @@ export function formatClock(hour: number, minute: number): string {
   const displayMinute = minute === 0 ? '' : `:${String(minute).padStart(2, '0')}`
   return `${displayHour}${displayMinute} ${period}`
 }
+
+/** Real-Date variants — used for actual appointment/blocked-slot data (as opposed to the
+ * fixed hour/minute numbers used for the rail's own hour labels). Positions are relative to
+ * the LOCAL (browser) calendar day, matching how the day/week grid itself is laid out. */
+
+export function offsetForDate(date: Date): number {
+  return minutesToOffset(date.getHours(), date.getMinutes())
+}
+
+export function heightForRange(start: Date, end: Date): number {
+  const minutes = (end.getTime() - start.getTime()) / 60_000
+  return (minutes / 60) * HOUR_ROW_HEIGHT
+}
+
+export function formatClockFromDate(date: Date): string {
+  return formatClock(date.getHours(), date.getMinutes())
+}
+
+/** Clips a [startAt, endAt) range to a single day's boundaries — needed because an appointment
+ * or blocked range can span midnight while the Day/Week grid only ever shows one calendar day
+ * at a time; without clipping, a multi-day block would render at the wrong offset. */
+export function clipRangeToDay(
+  startAt: Date,
+  endAt: Date,
+  dayStart: Date,
+  dayEnd: Date,
+): { start: Date; end: Date } | null {
+  const start = startAt < dayStart ? dayStart : startAt
+  const end = endAt > dayEnd ? dayEnd : endAt
+  if (start >= end) return null
+  return { start, end }
+}
+
+/** 0 (Monday) .. 6 (Sunday), matching the week view's column order — unlike JS's native
+ * Date.getDay() which is 0 (Sunday) .. 6 (Saturday). */
+export function weekdayIndexMondayFirst(date: Date): number {
+  const day = date.getDay()
+  return day === 0 ? 6 : day - 1
+}

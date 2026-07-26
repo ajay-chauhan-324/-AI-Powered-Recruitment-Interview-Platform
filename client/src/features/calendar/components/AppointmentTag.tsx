@@ -1,15 +1,24 @@
 import type { CSSProperties } from 'react'
-import type { DemoAppointment } from '@/features/calendar/fixtures/demoCalendarData'
-import { durationToHeight, formatClock, minutesToOffset } from '@/features/calendar/lib/layout'
+import { formatClockFromDate, heightForRange, offsetForDate } from '@/features/calendar/lib/layout'
 
-const SOURCE_LABEL: Record<DemoAppointment['source'], string> = {
+export type AppointmentTagStatus = 'pending' | 'confirmed' | 'cancelled'
+export type AppointmentTagSource = 'ai' | 'admin' | 'public'
+
+const SOURCE_LABEL: Record<AppointmentTagSource, string> = {
   ai: 'via AI',
   admin: 'via Admin',
   public: 'via Web',
 }
 
 interface AppointmentTagProps {
-  appointment: DemoAppointment
+  startAt: Date
+  endAt: Date
+  status: AppointmentTagStatus
+  /** Only present in an authenticated admin context (Phase 9) — the public view never
+   * receives name/email/purpose, so this renders a generic "Booked" label without it. */
+  title?: string
+  attendee?: string
+  source?: AppointmentTagSource
   /** Week view renders a narrower column and drops the attendee line. */
   compact?: boolean
 }
@@ -19,23 +28,24 @@ interface AppointmentTagProps {
  * source indicator, and a status left-edge bar (CLAUDE.md §8). Positioned
  * absolutely within a relative hour-rail ancestor.
  */
-export function AppointmentTag({ appointment, compact = false }: AppointmentTagProps) {
-  const { title, attendee, hour, minute, durationMinutes, source, status } = appointment
+export function AppointmentTag({ startAt, endAt, status, title, attendee, source, compact = false }: AppointmentTagProps) {
   const cancelled = status === 'cancelled'
-  const endTotalMinutes = hour * 60 + minute + durationMinutes
-  const startLabel = formatClock(hour, minute)
-  const endLabel = formatClock(Math.floor(endTotalMinutes / 60) % 24, endTotalMinutes % 60)
+  const startLabel = formatClockFromDate(startAt)
+  const endLabel = formatClockFromDate(endAt)
+  const displayTitle = title ?? 'Booked'
 
   const style: CSSProperties = {
-    top: minutesToOffset(hour, minute),
-    height: Math.max(durationToHeight(durationMinutes), 40),
+    top: offsetForDate(startAt),
+    height: Math.max(heightForRange(startAt, endAt), 40),
   }
+
+  const metaLine = [attendee, source ? SOURCE_LABEL[source] : undefined].filter(Boolean).join(' · ')
 
   return (
     <div
       style={style}
       role="group"
-      aria-label={`${title}, ${startLabel} to ${endLabel}, ${SOURCE_LABEL[source]}${cancelled ? ', cancelled' : ''}`}
+      aria-label={`${displayTitle}, ${startLabel} to ${endLabel}${cancelled ? ', cancelled' : ''}`}
       className={
         'absolute overflow-hidden rounded-md border-l-[3px] bg-paper-50 px-2.5 py-1.5 shadow-tag ' +
         (compact ? 'inset-x-1' : 'left-2 right-2 sm:right-auto sm:w-[min(60%,26rem)]') +
@@ -52,10 +62,9 @@ export function AppointmentTag({ appointment, compact = false }: AppointmentTagP
           (cancelled ? 'text-ink-700 line-through decoration-ink-300 decoration-2' : 'text-ink-900')
         }
       >
-        {title}
+        {displayTitle}
       </p>
-      {!compact && <p className="truncate text-xs text-ink-700">{attendee} · {SOURCE_LABEL[source]}</p>}
-      {compact && <p className="truncate text-xs text-ink-700">{SOURCE_LABEL[source]}</p>}
+      {metaLine && <p className="truncate text-xs text-ink-700">{metaLine}</p>}
     </div>
   )
 }

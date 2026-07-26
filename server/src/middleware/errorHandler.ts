@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express'
+import { ZodError } from 'zod'
 import { env } from '../config/env.js'
 
 export class AppError extends Error {
@@ -23,6 +24,12 @@ export function notFoundHandler(req: Request, res: Response) {
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
   if (err instanceof AppError) {
     res.status(err.statusCode).json({ error: { code: err.code, message: err.message } })
+    return
+  }
+
+  if (err instanceof ZodError) {
+    const message = err.issues.map((issue) => issue.message).join('; ')
+    res.status(400).json({ error: { code: 'VALIDATION_ERROR', message } })
     return
   }
 

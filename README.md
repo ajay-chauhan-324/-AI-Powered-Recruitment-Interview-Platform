@@ -4,7 +4,9 @@ AI-powered smart appointment booking system. The full engineering and design spe
 
 ## Status
 
-**Phases 1-4** complete: client/server scaffolding and design tokens, MongoDB models and validation, the timezone-aware availability engine, and a transaction-safe booking engine (create/reschedule/cancel) with automated tests covering a real concurrent double-booking race. No authentication, AI integration, real-time sync, or admin functionality exists yet — those are later phases (see CLAUDE.md §28).
+**Phases 1-5** complete: client/server scaffolding and design tokens, MongoDB models and validation, the timezone-aware availability engine, a transaction-safe booking engine (create/reschedule/cancel) with automated tests covering a real concurrent double-booking race, and the Time Canvas wired to real data — Day/Week/Month with real appointments and blocked time, date navigation (prev/next/today, swipe on mobile, click-a-day-to-zoom in Month view), and a live current-time indicator.
+
+The calendar read endpoint is intentionally public-safe (time/status only, no name/email/purpose) since there's no authentication yet — Phase 9 adds an authenticated admin view with full appointment detail and history. No AI integration, real-time sync, or admin functionality exists yet — those are later phases (see CLAUDE.md §28).
 
 Run the server's test suite with `cd server && npm test` (requires the local MongoDB replica set — see "Local MongoDB" below).
 
@@ -37,7 +39,7 @@ npm install
 npm run dev      # http://localhost:5173
 ```
 
-The server's `CLIENT_ORIGIN` env var must match the client's dev URL for CORS to work.
+The server's `CLIENT_ORIGIN` env var must match the client's dev URL for CORS to work. The client's Vite dev server proxies `/api` to `http://localhost:4000` (see `client/vite.config.ts`), so the client always calls same-origin `/api/v1/...` paths regardless of environment.
 
 ## Local MongoDB
 

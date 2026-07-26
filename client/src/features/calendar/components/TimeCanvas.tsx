@@ -1,18 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { getMonthGridCells } from '@/lib/dateContext'
-import { HOUR_ROW_HEIGHT, minutesToOffset } from '@/features/calendar/lib/layout'
-import {
-  DEMO_DAY_APPOINTMENTS,
-  DEMO_DAY_AVAILABILITY,
-  DEMO_DAY_BLOCKS,
-  DEMO_MONTH_DENSITY,
-  DEMO_WEEK_APPOINTMENTS,
-  DEMO_WEEK_AVAILABILITY,
-  DEMO_WEEK_BLOCKS,
-} from '@/features/calendar/fixtures/demoCalendarData'
+import type { TouchEvent } from 'react'
+import { getMonthGridCells, getRangeForZoom, isSameLocalDay, type DateRange } from '@/lib/dateContext'
+import { HOUR_ROW_HEIGHT, clipRangeToDay, minutesToOffset, offsetForDate, weekdayIndexMondayFirst } from '@/features/calendar/lib/layout'
+import { useCalendarView } from '@/features/calendar/hooks/useCalendarView'
+import type { CalendarAppointment, CalendarBlock } from '@/features/calendar/api/calendarApi'
 import { AppointmentTag } from './AppointmentTag'
 import { BlockedRange } from './BlockedRange'
-import { AvailabilityTick } from './AvailabilityTick'
 import { NowIndicator } from './NowIndicator'
 
 export type CanvasZoom = 'day' | 'week' | 'month'
@@ -26,22 +19,38 @@ const HOUR_LABELS = Array.from({ length: 24 }, (_, hour) => {
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 /** Both Day and Week are tall 24-hour columns — scroll to a sensible working-hours
- * start on load instead of defaulting to midnight, so the demo content (and, on
- * Day view, the current-time line) is visible without the reviewer having to
- * scroll first. */
+ * start on load instead of defaulting to midnight, so real appointments (and, on
+ * Day view, the current-time line) are visible without the viewer scrolling first. */
 const DEFAULT_SCROLL_HOUR = 7
+const SWIPE_THRESHOLD_PX = 50
+
+// A stable reference (not a fresh `[]` literal per render) so hooks that depend on
+// "the appointments array" don't invalidate their memoization every render while loading.
+const EMPTY_APPOINTMENTS: CalendarAppointment[] = []
+
+interface TimeCanvasProps {
+  zoom: CanvasZoom
+  anchorDate: Date
+  onAnchorDateChange: (date: Date) => void
+  onZoomChange: (zoom: CanvasZoom) => void
+}
 
 /**
- * Phase 1 visual foundation. The structural scaffold (hour rail, week
- * columns, month grid) is real; the appointments/availability/blocked-time
- * rendered on it are static DEMO fixtures (see fixtures/demoCalendarData.ts)
- * standing in for real domain data until Phase 2 onward. The current-time
- * line is the one genuinely live element (a display concern, not booking
- * logic).
+ * The Time Canvas, wired to the real backend (Phase 2-4). Appointments and
+ * blocked time are the PUBLIC-safe read model (server/src/services/
+ * calendarView.service.ts) — no name/email/purpose, since no authentication
+ * exists yet (Phase 9 adds an authenticated admin variant with full detail).
+ *
+ * "Conflict states" (CLAUDE.md §5 Phase 5 scope) has no trigger yet — there
+ * is no interactive booking or drag-to-reschedule until Phase 8/9, so
+ * there's nothing to conflict with. The visual language (border-conflict,
+ * conflict-tint) is ready in the design tokens for those phases to use.
  */
-export function TimeCanvas({ zoom }: { zoom: CanvasZoom }) {
+export function TimeCanvas({ zoom, anchorDate, onAnchorDateChange, onZoomChange }: TimeCanvasProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const now = useMemo(() => new Date(), [])
+  const range = useMemo(() => getRangeForZoom(zoom, anchorDate), [zoom, anchorDate])
+  const { data, isLoading, isError } = useCalendarView(range)
 
   useEffect(() => {
     const node = scrollRef.current
@@ -53,34 +62,64 @@ export function TimeCanvas({ zoom }: { zoom: CanvasZoom }) {
     }
 
     const defaultTarget = minutesToOffset(DEFAULT_SCROLL_HOUR, 0)
-    // On Day view, also make sure "now" is never scrolled out of view — if it's
-    // earlier than the default start, scroll to just above it instead.
     const nowTarget =
-      zoom === 'day' ? minutesToOffset(now.getHours(), now.getMinutes()) - 120 : defaultTarget
+      zoom === 'day' && isSameLocalDay(anchorDate, now) ? offsetForDate(now) - 120 : defaultTarget
     node.scrollTop = Math.max(0, Math.min(defaultTarget, nowTarget))
-  }, [zoom, now])
+  }, [zoom, anchorDate, now])
+
+  const touchStartX = useRef<number | null>(null)
+
+  function handleTouchStart(event: TouchEvent) {
+    touchStartX.current = event.touches[0]?.clientX ?? null
+  }
+
+  function handleTouchEnd(event: TouchEvent) {
+    const startX = touchStartX.current
+    touchStartX.current = null
+    if (startX === null) return
+
+    const deltaX = (event.changedTouches[0]?.clientX ?? startX) - startX
+    if (Math.abs(deltaX) < SWIPE_THRESHOLD_PX) return
+
+    const direction = deltaX < 0 ? 1 : -1
+    const result = new Date(anchorDate)
+    if (zoom === 'day') result.setDate(result.getDate() + direction)
+    else if (zoom === 'week') result.setDate(result.getDate() + direction * 7)
+    else result.setMonth(result.getMonth() + direction)
+    onAnchorDateChange(result)
+  }
 
   return (
     <div
       ref={scrollRef}
       role="region"
-      aria-label={`${zoom} time canvas (visual foundation with demo data)`}
+      aria-label={`${zoom} time canvas`}
       className="h-full overflow-y-auto pb-36"
       tabIndex={0}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
     >
-      <DemoDataNotice />
-      {zoom === 'day' && <DayFoundation now={now} />}
-      {zoom === 'week' && <WeekFoundation />}
-      {zoom === 'month' && <MonthFoundation now={now} />}
+      {isError && (
+        <p className="mx-auto max-w-5xl px-4 pt-3 text-xs text-conflict sm:px-6">
+          Something went wrong loading the calendar — retry by switching views or reloading.
+        </p>
+      )}
+      {isLoading && !data && (
+        <p className="mx-auto max-w-5xl px-4 pt-3 text-xs text-ink-700 sm:px-6">Loading…</p>
+      )}
+      {zoom === 'day' && <DayFoundation range={range} data={data} now={now} isSameAsToday={isSameLocalDay(anchorDate, now)} />}
+      {zoom === 'week' && <WeekFoundation range={range} data={data} />}
+      {zoom === 'month' && (
+        <MonthFoundation
+          anchorDate={anchorDate}
+          data={data}
+          onSelectDay={(date) => {
+            onAnchorDateChange(date)
+            onZoomChange('day')
+          }}
+        />
+      )}
     </div>
-  )
-}
-
-function DemoDataNotice() {
-  return (
-    <p className="mx-auto max-w-5xl px-4 pt-3 text-xs text-ink-700 sm:px-6">
-      Demo data shown for visual review — not real appointments.
-    </p>
   )
 }
 
@@ -94,9 +133,33 @@ function HourGridLines() {
   )
 }
 
-function DayFoundation({ now }: { now: Date }) {
+interface ViewData {
+  appointments: CalendarAppointment[]
+  blockedSlots: CalendarBlock[]
+}
+
+function DayFoundation({
+  range,
+  data,
+  now,
+  isSameAsToday,
+}: {
+  range: DateRange
+  data: ViewData | undefined
+  now: Date
+  isSameAsToday: boolean
+}) {
+  const appointments = data?.appointments ?? []
+  const blockedSlots = data?.blockedSlots ?? []
+  const isEmpty = data && appointments.length === 0 && blockedSlots.length === 0
+
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-4 sm:px-6">
+      {isEmpty && (
+        <p className="pointer-events-none sticky top-1/2 z-10 mx-auto max-w-xs -translate-y-1/2 text-center text-sm text-ink-700">
+          Nothing scheduled for this day.
+        </p>
+      )}
       <div className="flex">
         <div className="w-14 shrink-0 pr-2 text-right sm:w-16 sm:pr-3">
           {HOUR_LABELS.map((label) => (
@@ -107,23 +170,40 @@ function DayFoundation({ now }: { now: Date }) {
         </div>
         <div className="relative flex-1 border-l border-hairline">
           <HourGridLines />
-          {DEMO_DAY_BLOCKS.map((block) => (
-            <BlockedRange key={block.id} block={block} />
-          ))}
-          {DEMO_DAY_AVAILABILITY.map((tick) => (
-            <AvailabilityTick key={tick.id} tick={tick} />
-          ))}
-          {DEMO_DAY_APPOINTMENTS.map((appointment) => (
-            <AppointmentTag key={appointment.id} appointment={appointment} />
-          ))}
-          <NowIndicator now={now} />
+          {blockedSlots.map((block) => {
+            const clipped = clipRangeToDay(new Date(block.startAt), new Date(block.endAt), range.start, range.end)
+            if (!clipped) return null
+            return <BlockedRange key={block.id} label={block.label} startAt={clipped.start} endAt={clipped.end} />
+          })}
+          {appointments.map((appointment) => {
+            const clipped = clipRangeToDay(
+              new Date(appointment.startAt),
+              new Date(appointment.endAt),
+              range.start,
+              range.end,
+            )
+            if (!clipped) return null
+            return <AppointmentTag key={appointment.id} startAt={clipped.start} endAt={clipped.end} status={appointment.status} />
+          })}
+          {isSameAsToday && <NowIndicator now={now} />}
         </div>
       </div>
     </div>
   )
 }
 
-function WeekFoundation() {
+function WeekFoundation({ range, data }: { range: DateRange; data: ViewData | undefined }) {
+  const appointments = data?.appointments ?? []
+  const blockedSlots = data?.blockedSlots ?? []
+
+  const dayBounds = Array.from({ length: 7 }, (_, dayIndex) => {
+    const start = new Date(range.start)
+    start.setDate(start.getDate() + dayIndex)
+    const end = new Date(start)
+    end.setDate(end.getDate() + 1)
+    return { start, end }
+  })
+
   return (
     <div className="mx-auto flex w-full flex-col px-4 py-4 sm:px-6">
       <div className="grid grid-cols-[3.5rem_repeat(7,1fr)] border-b border-hairline pb-2 sm:grid-cols-[4rem_repeat(7,1fr)]">
@@ -146,18 +226,36 @@ function WeekFoundation() {
             </div>
           ))}
         </div>
-        {WEEKDAY_LABELS.map((_, dayIndex) => (
+        {dayBounds.map((bounds, dayIndex) => (
           <div key={dayIndex} className="relative border-l border-hairline">
             <HourGridLines />
-            {DEMO_WEEK_BLOCKS.filter((block) => block.dayIndex === dayIndex).map((block) => (
-              <BlockedRange key={block.id} block={block} />
-            ))}
-            {DEMO_WEEK_AVAILABILITY.filter((tick) => tick.dayIndex === dayIndex).map((tick) => (
-              <AvailabilityTick key={tick.id} tick={tick} showLabel={false} />
-            ))}
-            {DEMO_WEEK_APPOINTMENTS.filter((appointment) => appointment.dayIndex === dayIndex).map((appointment) => (
-              <AppointmentTag key={appointment.id} appointment={appointment} compact />
-            ))}
+            {blockedSlots
+              .filter((block) => weekdayIndexMondayFirst(new Date(block.startAt)) === dayIndex || weekdayIndexMondayFirst(new Date(block.endAt)) === dayIndex)
+              .map((block) => {
+                const clipped = clipRangeToDay(new Date(block.startAt), new Date(block.endAt), bounds.start, bounds.end)
+                if (!clipped) return null
+                return <BlockedRange key={block.id} label={block.label} startAt={clipped.start} endAt={clipped.end} />
+              })}
+            {appointments
+              .filter((appointment) => weekdayIndexMondayFirst(new Date(appointment.startAt)) === dayIndex)
+              .map((appointment) => {
+                const clipped = clipRangeToDay(
+                  new Date(appointment.startAt),
+                  new Date(appointment.endAt),
+                  bounds.start,
+                  bounds.end,
+                )
+                if (!clipped) return null
+                return (
+                  <AppointmentTag
+                    key={appointment.id}
+                    startAt={clipped.start}
+                    endAt={clipped.end}
+                    status={appointment.status}
+                    compact
+                  />
+                )
+              })}
           </div>
         ))}
       </div>
@@ -165,8 +263,27 @@ function WeekFoundation() {
   )
 }
 
-function MonthFoundation({ now }: { now: Date }) {
-  const cells = useMemo(() => getMonthGridCells(now), [now])
+function MonthFoundation({
+  anchorDate,
+  data,
+  onSelectDay,
+}: {
+  anchorDate: Date
+  data: ViewData | undefined
+  onSelectDay: (date: Date) => void
+}) {
+  const cells = useMemo(() => getMonthGridCells(anchorDate), [anchorDate])
+  const appointments = data?.appointments ?? EMPTY_APPOINTMENTS
+
+  const countsByDateKey = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const appointment of appointments) {
+      const date = new Date(appointment.startAt)
+      const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+      counts.set(key, (counts.get(key) ?? 0) + 1)
+    }
+    return counts
+  }, [appointments])
 
   return (
     <div className="mx-auto w-full px-4 py-4 sm:px-6">
@@ -177,36 +294,39 @@ function MonthFoundation({ now }: { now: Date }) {
           </div>
         ))}
         {cells.map(({ date, inCurrentMonth }, index) => {
-          const density = inCurrentMonth
-            ? DEMO_MONTH_DENSITY.find((entry) => entry.dayOfMonth === date.getDate())
-            : undefined
+          const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+          const count = countsByDateKey.get(key) ?? 0
+          const tickCount = Math.min(count, 3)
+          const overflow = count > 3 ? count - 3 : 0
           const cellLabel = date.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })
+
           return (
-            <div
+            <button
               key={index}
-              role="group"
+              type="button"
+              onClick={() => onSelectDay(date)}
               aria-label={
-                density
-                  ? `${cellLabel}, ${density.tickCount} appointment${density.tickCount === 1 ? '' : 's'}${density.overflow ? `, plus ${density.overflow} more` : ''}`
-                  : cellLabel
+                count > 0
+                  ? `${cellLabel}, ${count} appointment${count === 1 ? '' : 's'}. View day.`
+                  : `${cellLabel}. View day.`
               }
               className={
-                'flex min-h-20 flex-col gap-1 p-1.5 sm:min-h-28 sm:p-2 ' +
+                'flex min-h-20 flex-col gap-1 p-1.5 text-left hover:bg-amber-100/40 focus-visible:relative focus-visible:z-10 sm:min-h-28 sm:p-2 ' +
                 (inCurrentMonth ? 'bg-paper-50' : 'bg-paper-50/50')
               }
             >
               <span className={'font-mono text-xs tabular-nums ' + (inCurrentMonth ? 'text-ink-900' : 'text-ink-300')}>
                 {date.getDate()}
               </span>
-              {density && (
+              {count > 0 && (
                 <div className="flex flex-wrap items-center gap-1">
-                  {Array.from({ length: density.tickCount }).map((_, tickIndex) => (
+                  {Array.from({ length: tickCount }).map((_, tickIndex) => (
                     <span key={tickIndex} aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-ink-900" />
                   ))}
-                  {density.overflow && <span className="text-xs text-ink-700">+{density.overflow} more</span>}
+                  {overflow > 0 && <span className="text-xs text-ink-700">+{overflow} more</span>}
                 </div>
               )}
-            </div>
+            </button>
           )
         })}
       </div>
