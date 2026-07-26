@@ -1,4 +1,4 @@
-import { Schema, model, type InferSchemaType } from 'mongoose'
+import { Schema, model, type HydratedDocument, type InferSchemaType } from 'mongoose'
 
 /**
  * Working hours and recurring breaks are stored as minutes-since-local-
@@ -42,5 +42,6 @@ const scheduleConfigSchema = new Schema(
   { timestamps: true },
 )
 
-export type ScheduleConfigDocument = InferSchemaType<typeof scheduleConfigSchema>
+export type ScheduleConfigAttrs = InferSchemaType<typeof scheduleConfigSchema>
+export type ScheduleConfigDocument = HydratedDocument<ScheduleConfigAttrs>
 export const ScheduleConfigModel = model('ScheduleConfig', scheduleConfigSchema)

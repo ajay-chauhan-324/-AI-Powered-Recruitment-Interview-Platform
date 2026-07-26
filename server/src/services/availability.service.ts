@@ -36,6 +36,9 @@ export interface AvailabilityQuery {
   rangeStart: Date
   rangeEnd: Date
   durationMinutes: number
+  /** Ignore this appointment's own current time when checking for conflicts — needed so
+   * rescheduling an appointment doesn't collide with the slot it currently occupies. */
+  excludeAppointmentId?: string
 }
 
 export interface AlternativesQuery {
@@ -43,6 +46,7 @@ export interface AlternativesQuery {
   durationMinutes: number
   count?: number
   searchWindowDays?: number
+  excludeAppointmentId?: string
 }
 
 async function getScheduleConfig() {
@@ -94,7 +98,7 @@ function subtractIntervals(base: Interval[], remove: Interval[]): Interval[] {
  * breaks, one-off blocked periods, existing appointments, and the current time (no slot starting in the past).
  */
 export async function findAvailableSlots(query: AvailabilityQuery, now: Date = new Date()): Promise<AvailableSlot[]> {
-  const { rangeStart, rangeEnd, durationMinutes } = query
+  const { rangeStart, rangeEnd, durationMinutes, excludeAppointmentId } = query
   if (rangeEnd <= rangeStart || durationMinutes <= 0) return []
   if (rangeEnd.getTime() - rangeStart.getTime() > MAX_QUERY_RANGE_DAYS * 86_400_000) {
     throw new Error(`Availability queries are limited to ${MAX_QUERY_RANGE_DAYS} days at a time.`)
@@ -103,13 +107,18 @@ export async function findAvailableSlots(query: AvailabilityQuery, now: Date = n
   const config = await getScheduleConfig()
   const zone = config.timezone
 
+  const appointmentFilter: Record<string, unknown> = {
+    status: { $in: ['pending', 'confirmed'] },
+    startAt: { $lt: rangeEnd },
+    endAt: { $gt: rangeStart },
+  }
+  if (excludeAppointmentId) {
+    appointmentFilter._id = { $ne: excludeAppointmentId }
+  }
+
   const [blockedSlots, existingAppointments] = await Promise.all([
     BlockedSlotModel.find({ startAt: { $lt: rangeEnd }, endAt: { $gt: rangeStart } }).lean(),
-    AppointmentModel.find({
-      status: { $in: ['pending', 'confirmed'] },
-      startAt: { $lt: rangeEnd },
-      endAt: { $gt: rangeStart },
-    }).lean(),
+    AppointmentModel.find(appointmentFilter).lean(),
   ])
 
   const busyIntervals: Interval[] = [
@@ -161,9 +170,14 @@ export async function findAvailableSlots(query: AvailabilityQuery, now: Date = n
 }
 
 /** Whether this exact [start, start+durationMinutes) slot — not just some slot in that range — is free. */
-export async function isSlotAvailable(start: Date, durationMinutes: number, now: Date = new Date()): Promise<boolean> {
+export async function isSlotAvailable(
+  start: Date,
+  durationMinutes: number,
+  now: Date = new Date(),
+  excludeAppointmentId?: string,
+): Promise<boolean> {
   const end = new Date(start.getTime() + durationMinutes * 60_000)
-  const slots = await findAvailableSlots({ rangeStart: start, rangeEnd: end, durationMinutes }, now)
+  const slots = await findAvailableSlots({ rangeStart: start, rangeEnd: end, durationMinutes, excludeAppointmentId }, now)
   return slots.some((slot) => slot.start.getTime() === start.getTime() && slot.end.getTime() === end.getTime())
 }
 
@@ -172,12 +186,12 @@ export async function findNearestAlternatives(
   query: AlternativesQuery,
   now: Date = new Date(),
 ): Promise<AvailableSlot[]> {
-  const { preferredStart, durationMinutes, count = 3, searchWindowDays = 7 } = query
+  const { preferredStart, durationMinutes, count = 3, searchWindowDays = 7, excludeAppointmentId } = query
 
   const rangeStart = new Date(Math.max(now.getTime(), preferredStart.getTime() - searchWindowDays * 86_400_000))
   const rangeEnd = new Date(preferredStart.getTime() + searchWindowDays * 86_400_000)
 
-  const slots = await findAvailableSlots({ rangeStart, rangeEnd, durationMinutes }, now)
+  const slots = await findAvailableSlots({ rangeStart, rangeEnd, durationMinutes, excludeAppointmentId }, now)
 
   return slots
     .slice()

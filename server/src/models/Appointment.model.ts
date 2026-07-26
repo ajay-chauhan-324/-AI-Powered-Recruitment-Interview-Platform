@@ -1,4 +1,4 @@
-import { Schema, model, type InferSchemaType } from 'mongoose'
+import { Schema, model, type HydratedDocument, type InferSchemaType } from 'mongoose'
 
 export const APPOINTMENT_STATUSES = ['pending', 'confirmed', 'cancelled', 'completed', 'no_show'] as const
 export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number]
@@ -35,5 +35,8 @@ const appointmentSchema = new Schema(
 // before every create/reschedule: { status: 'confirmed', startAt: { $lt }, endAt: { $gt } }.
 appointmentSchema.index({ status: 1, startAt: 1, endAt: 1 })
 
-export type AppointmentDocument = InferSchemaType<typeof appointmentSchema>
+/** The plain data shape (used for `.lean()` query results) — no `_id`, no instance methods. */
+export type AppointmentAttrs = InferSchemaType<typeof appointmentSchema>
+/** A real Mongoose document instance — has `_id`, `.save()`, etc. Use this everywhere a hydrated document is expected. */
+export type AppointmentDocument = HydratedDocument<AppointmentAttrs>
 export const AppointmentModel = model('Appointment', appointmentSchema)

@@ -1,4 +1,4 @@
-import { Schema, model, type InferSchemaType } from 'mongoose'
+import { Schema, model, type HydratedDocument, type InferSchemaType } from 'mongoose'
 
 /**
  * One-off blocked periods (holidays, vacation days) — distinct from the
@@ -16,5 +16,6 @@ const blockedSlotSchema = new Schema(
 
 blockedSlotSchema.index({ startAt: 1, endAt: 1 })
 
-export type BlockedSlotDocument = InferSchemaType<typeof blockedSlotSchema>
+export type BlockedSlotAttrs = InferSchemaType<typeof blockedSlotSchema>
+export type BlockedSlotDocument = HydratedDocument<BlockedSlotAttrs>
 export const BlockedSlotModel = model('BlockedSlot', blockedSlotSchema)

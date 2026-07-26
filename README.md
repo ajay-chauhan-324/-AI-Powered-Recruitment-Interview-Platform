@@ -4,7 +4,9 @@ AI-powered smart appointment booking system. The full engineering and design spe
 
 ## Status
 
-**Phase 1 — Foundation** and **Phase 2 — Domain and Database** complete: client/server scaffolding, design tokens, the static app shell, MongoDB connection, and the Appointment/ScheduleConfig/BlockedSlot models with Zod validation. No authentication, booking logic, availability logic, AI integration, real-time sync, or admin functionality exists yet — those are later phases (see CLAUDE.md §28).
+**Phases 1-4** complete: client/server scaffolding and design tokens, MongoDB models and validation, the timezone-aware availability engine, and a transaction-safe booking engine (create/reschedule/cancel) with automated tests covering a real concurrent double-booking race. No authentication, AI integration, real-time sync, or admin functionality exists yet — those are later phases (see CLAUDE.md §28).
+
+Run the server's test suite with `cd server && npm test` (requires the local MongoDB replica set — see "Local MongoDB" below).
 
 ## Structure
 
