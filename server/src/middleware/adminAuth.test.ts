@@ -7,11 +7,10 @@ import { createApp } from '../app.js'
 import { AdminUserModel } from '../models/AdminUser.model.js'
 
 /**
- * A real HTTP-level test — unlike appointment.service.test.ts (which calls the service
- * layer directly), authorization is fundamentally an HTTP/middleware concern (CLAUDE.md
- * §12's Phase 12 checklist explicitly names "Authorization" as its own test dimension), so
- * it needs to actually exercise requireAdminAuth wired into real Express routes, not just
- * the JWT-verification logic in isolation.
+ * A real HTTP-level test — unlike interview.service.test.ts (which calls the service layer
+ * directly), authorization is fundamentally an HTTP/middleware concern, so it needs to
+ * actually exercise requireAdminAuth wired into real Express routes, not just the
+ * JWT-verification logic in isolation.
  */
 const TEST_MONGODB_URI = 'mongodb://127.0.0.1:27018/booking_system_test?replicaSet=rs0'
 const TEST_PORT = 4098
@@ -48,14 +47,14 @@ describe('admin authorization', () => {
   })
 
   it('rejects an admin route with no session cookie at all', async () => {
-    const response = await fetch(`${BASE_URL}/api/v1/admin/appointments?from=2026-01-01T00:00:00.000Z&to=2026-01-02T00:00:00.000Z`)
+    const response = await fetch(`${BASE_URL}/api/v1/admin/interviews?from=2026-01-01T00:00:00.000Z&to=2026-01-02T00:00:00.000Z`)
     assert.equal(response.status, 401)
     const body = (await response.json()) as { error: { code: string } }
     assert.equal(body.error.code, 'UNAUTHORIZED')
   })
 
   it('rejects an admin route with a garbage/invalid session cookie', async () => {
-    const response = await fetch(`${BASE_URL}/api/v1/admin/appointments?from=2026-01-01T00:00:00.000Z&to=2026-01-02T00:00:00.000Z`, {
+    const response = await fetch(`${BASE_URL}/api/v1/admin/interviews?from=2026-01-01T00:00:00.000Z&to=2026-01-02T00:00:00.000Z`, {
       headers: { Cookie: 'admin_session=not-a-real-jwt' },
     })
     assert.equal(response.status, 401)
@@ -82,11 +81,11 @@ describe('admin authorization', () => {
     const meResponse = await fetch(`${BASE_URL}/api/v1/admin/auth/me`, { headers: { Cookie: cookie } })
     assert.equal(meResponse.status, 200)
 
-    const appointmentsResponse = await fetch(
-      `${BASE_URL}/api/v1/admin/appointments?from=2026-01-01T00:00:00.000Z&to=2026-01-02T00:00:00.000Z`,
+    const interviewsResponse = await fetch(
+      `${BASE_URL}/api/v1/admin/interviews?from=2026-01-01T00:00:00.000Z&to=2026-01-02T00:00:00.000Z`,
       { headers: { Cookie: cookie } },
     )
-    assert.equal(appointmentsResponse.status, 200)
+    assert.equal(interviewsResponse.status, 200)
   })
 
   it('logout tells the browser to clear the cookie (Set-Cookie with Max-Age=0)', async () => {

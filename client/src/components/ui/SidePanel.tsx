@@ -10,7 +10,7 @@ const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 /**
- * The "contextual appointment details" surface — slides in from the right
+ * The "contextual interview details" surface — slides in from the right
  * edge on desktop (384px), a full-width bottom sheet on mobile. Used when
  * something is selected (here: booking a new slot), never a permanent
  * fixture of the layout.

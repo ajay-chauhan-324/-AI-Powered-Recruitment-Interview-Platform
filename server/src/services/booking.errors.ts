@@ -23,9 +23,9 @@ export class NotFoundError extends Error {
   }
 }
 
-export class AppointmentNotFoundError extends NotFoundError {
+export class InterviewNotFoundError extends NotFoundError {
   constructor() {
-    super('Appointment not found.')
-    this.name = 'AppointmentNotFoundError'
+    super('Interview not found.')
+    this.name = 'InterviewNotFoundError'
   }
 }

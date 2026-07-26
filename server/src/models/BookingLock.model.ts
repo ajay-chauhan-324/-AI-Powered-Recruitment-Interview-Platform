@@ -8,8 +8,8 @@ import { Schema, model } from 'mongoose'
  *
  * Why this is necessary: MongoDB transactions use snapshot isolation, not
  * full serializable predicate locking. Two concurrent transactions that each
- * read "no conflicting appointment exists" and then insert two DIFFERENT,
- * overlapping appointment documents will NOT conflict at the storage-engine
+ * read "no conflicting interview exists" and then insert two DIFFERENT,
+ * overlapping interview documents will NOT conflict at the storage-engine
  * level — nothing stops both from committing, resulting in an actual double
  * booking. Making every mutation touch this one shared document turns that
  * race into a genuine write-write conflict on the same document, which

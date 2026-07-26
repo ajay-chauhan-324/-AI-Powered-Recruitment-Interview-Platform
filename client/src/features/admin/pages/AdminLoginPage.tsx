@@ -32,7 +32,7 @@ export function AdminLoginPage() {
   return (
     <StandaloneCard title="The Ledger — Admin">
       <form onSubmit={handleSubmit}>
-        <p className="mb-5 text-sm text-ink-700">Sign in to manage appointments, schedules, and blocked time.</p>
+        <p className="mb-5 text-sm text-ink-700">Sign in to manage interviews, schedules, and blocked time.</p>
 
         <label className="flex flex-col gap-1 text-sm text-ink-700">
           Email

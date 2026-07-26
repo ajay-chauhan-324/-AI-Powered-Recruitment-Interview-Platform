@@ -4,18 +4,16 @@ import assert from 'node:assert/strict'
 import mongoose from 'mongoose'
 import { io, type Socket } from 'socket.io-client'
 import { DateTime } from 'luxon'
-import { AppointmentModel } from '../models/Appointment.model.js'
+import { InterviewModel } from '../models/Interview.model.js'
 import { ScheduleConfigModel } from '../models/ScheduleConfig.model.js'
-import { createAppointment, cancelAppointment } from '../services/appointment.service.js'
+import { createInterview, cancelInterview } from '../services/interview.service.js'
 import { initSocketServer } from './socketServer.js'
 
 /**
  * Self-contained: starts its own http+socket server in THIS process. This matters because
- * appointmentEvents (the EventEmitter appointment.service.ts publishes to) is a per-process
+ * interviewEvents (the EventEmitter interview.service.ts publishes to) is a per-process
  * singleton — a separate test process calling the service would never reach a different
- * process's Socket.IO instance. This is the permanent version of the ad-hoc script used to
- * verify Phase 6; CLAUDE.md's Phase 12 checklist explicitly names "Real-time behavior" as
- * its own test dimension, so it shouldn't only have been checked once and thrown away.
+ * process's Socket.IO instance.
  */
 const TEST_MONGODB_URI = 'mongodb://127.0.0.1:27018/booking_system_test?replicaSet=rs0'
 const TEST_PORT = 4097
@@ -75,12 +73,12 @@ describe('real-time domain events', () => {
     await mongoose.disconnect()
   })
 
-  it('broadcasts appointment.created with the correct public-safe payload after a real booking', async () => {
-    const createdEventPromise = waitForEvent('appointment.created')
-    const { appointment } = await createAppointment({
-      name: 'Realtime Test',
-      email: 'realtime-test@example.com',
-      purpose: 'Verify socket delivery',
+  it('broadcasts interview.created with the correct public-safe payload after a real booking', async () => {
+    const createdEventPromise = waitForEvent('interview.created')
+    const { interview } = await createInterview({
+      title: 'Realtime Test',
+      candidateName: 'Realtime Test',
+      candidateEmail: 'realtime-test@example.com',
       startAt: nextMondayAt(10),
       durationMinutes: 30,
       timezone: TIMEZONE,
@@ -88,32 +86,32 @@ describe('real-time domain events', () => {
     })
 
     const payload = (await createdEventPromise) as { id: string; status: string }
-    assert.equal(payload.id, appointment._id.toString())
+    assert.equal(payload.id, interview._id.toString())
     assert.equal(payload.status, 'confirmed')
-    assert.ok(!('name' in payload), 'the broadcast payload must never include name (public-safe, matching the calendar read endpoint)')
-    assert.ok(!('email' in payload), 'the broadcast payload must never include email')
+    assert.ok(!('candidateName' in payload), 'the broadcast payload must never include candidateName (public-safe, matching the calendar read endpoint)')
+    assert.ok(!('candidateEmail' in payload), 'the broadcast payload must never include candidateEmail')
 
-    await AppointmentModel.deleteOne({ _id: appointment._id })
+    await InterviewModel.deleteOne({ _id: interview._id })
   })
 
-  it('broadcasts appointment.cancelled after a cancellation', async () => {
-    const { appointment } = await createAppointment({
-      name: 'Realtime Cancel Test',
-      email: 'realtime-cancel@example.com',
-      purpose: 'Verify cancel event',
+  it('broadcasts interview.cancelled after a cancellation', async () => {
+    const { interview } = await createInterview({
+      title: 'Realtime Cancel Test',
+      candidateName: 'Realtime Cancel Test',
+      candidateEmail: 'realtime-cancel@example.com',
       startAt: nextMondayAt(11),
       durationMinutes: 30,
       timezone: TIMEZONE,
       source: 'admin',
     })
 
-    const cancelledEventPromise = waitForEvent('appointment.cancelled')
-    await cancelAppointment(appointment._id.toString())
+    const cancelledEventPromise = waitForEvent('interview.cancelled')
+    await cancelInterview(interview._id.toString())
     const payload = (await cancelledEventPromise) as { id: string; status: string }
 
-    assert.equal(payload.id, appointment._id.toString())
+    assert.equal(payload.id, interview._id.toString())
     assert.equal(payload.status, 'cancelled')
 
-    await AppointmentModel.deleteOne({ _id: appointment._id })
+    await InterviewModel.deleteOne({ _id: interview._id })
   })
 })

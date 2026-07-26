@@ -1,24 +1,63 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/apiClient'
 
-export interface PublicAppointment {
+export type InterviewType =
+  | 'hr_screening'
+  | 'technical'
+  | 'coding'
+  | 'system_design'
+  | 'behavioral'
+  | 'managerial'
+  | 'final'
+  | 'panel'
+  | 'custom'
+
+export type InterviewLocationType = 'video' | 'phone' | 'onsite' | 'custom'
+
+export interface PublicInterview {
   id: string
   startAt: string
   endAt: string
   status: 'pending' | 'confirmed' | 'cancelled'
 }
 
-export interface OwnerAppointment extends PublicAppointment {
-  name: string
-  email: string
-  purpose: string
+export interface OwnerInterview extends PublicInterview {
+  title: string
+  description: string
+  interviewType: InterviewType
+  round: number
+  locationType: InterviewLocationType
+  meetingUrl: string
+  address: string
+  interviewerName: string
+  candidateName: string
+  candidateEmail: string
+  candidatePhone: string
+  candidateLinkedIn: string
+  candidateGithub: string
+  candidatePortfolioUrl: string
+  candidateResumeUrl: string
+  candidateNotes: string
   durationMinutes: number
   timezone: string
 }
 
-export interface CreateAppointmentInput {
-  name: string
-  email: string
-  purpose: string
+export interface CreateInterviewInput {
+  title?: string
+  interviewType?: InterviewType
+  round?: number
+  locationType?: InterviewLocationType
+  meetingUrl?: string
+  address?: string
+  interviewerName?: string
+  interviewerEmail?: string
+  candidateName: string
+  candidateEmail: string
+  candidatePhone?: string
+  candidateLinkedIn?: string
+  candidateGithub?: string
+  candidatePortfolioUrl?: string
+  candidateResumeUrl?: string
+  candidateNotes?: string
   startAt: string
   durationMinutes: number
   timezone: string
@@ -29,25 +68,25 @@ export interface AvailableSlot {
   end: string
 }
 
-export function createAppointment(
-  input: CreateAppointmentInput,
-): Promise<{ appointment: PublicAppointment; manageToken: string }> {
-  return apiPost('/appointments', input)
+export function createInterview(
+  input: CreateInterviewInput,
+): Promise<{ interview: PublicInterview; manageToken: string }> {
+  return apiPost('/interviews', input)
 }
 
-export function fetchAppointmentByToken(token: string): Promise<{ appointment: OwnerAppointment }> {
-  return apiGet(`/appointments/manage/${token}`)
+export function fetchInterviewByToken(token: string): Promise<{ interview: OwnerInterview }> {
+  return apiGet(`/interviews/manage/${token}`)
 }
 
-export function rescheduleAppointmentByToken(
+export function rescheduleInterviewByToken(
   token: string,
   newStart: string,
-): Promise<{ appointment: OwnerAppointment }> {
-  return apiPatch(`/appointments/manage/${token}`, { newStart })
+): Promise<{ interview: OwnerInterview }> {
+  return apiPatch(`/interviews/manage/${token}`, { newStart })
 }
 
-export function cancelAppointmentByToken(token: string): Promise<{ appointment: OwnerAppointment }> {
-  return apiDelete(`/appointments/manage/${token}`)
+export function cancelInterviewByToken(token: string): Promise<{ interview: OwnerInterview }> {
+  return apiDelete(`/interviews/manage/${token}`)
 }
 
 export function fetchAvailability(from: Date, to: Date, durationMinutes: number): Promise<{ slots: AvailableSlot[] }> {

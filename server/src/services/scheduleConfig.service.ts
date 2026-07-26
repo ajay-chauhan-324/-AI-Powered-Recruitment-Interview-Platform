@@ -1,6 +1,6 @@
 import { ScheduleConfigModel, type ScheduleConfigDocument } from '../models/ScheduleConfig.model.js'
 import type { ScheduleConfigInput } from '../validators/schedule.validators.js'
-import { appointmentEvents } from '../events/appointmentEvents.js'
+import { interviewEvents } from '../events/interviewEvents.js'
 
 export async function getScheduleConfig(): Promise<ScheduleConfigDocument | null> {
   return ScheduleConfigModel.findOne({ singleton: 'default' })
@@ -15,6 +15,6 @@ export async function upsertScheduleConfig(input: ScheduleConfigInput): Promise<
     { $set: input },
     { upsert: true, new: true, setDefaultsOnInsert: true },
   )
-  appointmentEvents.emitAvailabilityChanged({ reason: 'schedule' })
+  interviewEvents.emitAvailabilityChanged({ reason: 'schedule' })
   return updated
 }

@@ -7,7 +7,7 @@ interface StandaloneCardProps {
 
 /**
  * The shared shell for pages reached outside the main app frame (admin login, guest
- * manage-appointment) — previously each page floated its own small card directly on
+ * manage-interview) — previously each page floated its own small card directly on
  * `bg-paper-50`, which is the same flat tone as the card itself, so the page read as an
  * almost-empty void with a shrunken box in it. Giving the page a slightly deeper `paper-100`
  * field behind a `paper-50` card creates real depth using only existing tokens (no

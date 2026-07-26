@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { timezoneSchema } from './appointment.validators.js'
+import { timezoneSchema } from './interview.validators.js'
 
 const dayAndRangeSchema = {
   dayOfWeek: z.number().int().min(0).max(6),
@@ -25,6 +25,12 @@ export const scheduleConfigInputSchema = z.object({
   timezone: timezoneSchema,
   workingHours: z.array(workingHoursInputSchema),
   breaks: z.array(recurringBreakInputSchema),
+  // Interview booking rules (CLAUDE.md's admin schedule-settings requirements). Optional so
+  // existing PUT payloads that predate these fields still validate — the model's own
+  // defaults (0/0/60) apply when omitted.
+  bufferMinutes: z.number().int().min(0).max(1440).optional(),
+  minNoticeMinutes: z.number().int().min(0).max(10_080).optional(),
+  maxBookingWindowDays: z.number().int().min(1).max(365).optional(),
 })
 
 export const blockedSlotInputSchema = z

@@ -1,11 +1,11 @@
 import { z } from 'zod'
 import {
-  cancelAppointment,
-  createAppointment,
-  getAppointmentByToken,
-  listAppointmentsInRange,
-  rescheduleAppointment,
-} from '../services/appointment.service.js'
+  cancelInterview,
+  createInterview,
+  getInterviewByToken,
+  listInterviewsInRange,
+  rescheduleInterview,
+} from '../services/interview.service.js'
 import {
   findAvailableSlots,
   findNearestAlternatives,
@@ -14,8 +14,8 @@ import {
   type AvailableSlot,
 } from '../services/availability.service.js'
 import { createBlockedSlot } from '../services/blockedSlot.service.js'
-import { AppointmentNotFoundError, BookingValidationError, NotFoundError, SlotConflictError } from '../services/booking.errors.js'
-import { publicCreateAppointmentInputSchema } from '../validators/appointment.validators.js'
+import { InterviewNotFoundError, BookingValidationError, NotFoundError, SlotConflictError } from '../services/booking.errors.js'
+import { publicCreateInterviewInputSchema } from '../validators/interview.validators.js'
 import { blockedSlotInputSchema } from '../validators/schedule.validators.js'
 import type { AiContext } from './aiContext.js'
 import type { AiToolCall, AiToolDefinition } from './providers/types.js'
@@ -36,7 +36,7 @@ interface ToolDefinitionInternal {
 }
 
 const MAX_SLOTS_RETURNED = 8
-const MAX_APPOINTMENTS_RETURNED = 50
+const MAX_INTERVIEWS_RETURNED = 50
 
 function slotsToJson(slots: AvailableSlot[]) {
   return slots.map((slot) => ({ start: slot.start.toISOString(), end: slot.end.toISOString() }))
@@ -61,16 +61,16 @@ function describeError(error: unknown): Record<string, unknown> {
   return { error: 'Something went wrong performing that action.' }
 }
 
-/** Guest tools resolve the target appointment from the server-held manage token ONLY —
- * never from an appointment ID the model might pass along. This is the actual authorization
+/** Guest tools resolve the target interview from the server-held manage token ONLY — never
+ * from an interview ID the model might pass along. This is the actual authorization
  * boundary; the system prompt's instructions support it but this is what enforces it. */
-async function resolveGuestAppointmentOrThrow(context: AiContext) {
+async function resolveGuestInterviewOrThrow(context: AiContext) {
   if (context.mode !== 'guest' || !context.manageToken) {
-    throw new NotFoundError('No appointment is associated with this conversation.')
+    throw new NotFoundError('No interview is associated with this conversation.')
   }
-  const appointment = await getAppointmentByToken(context.manageToken)
-  if (!appointment) throw new AppointmentNotFoundError()
-  return appointment
+  const interview = await getInterviewByToken(context.manageToken)
+  if (!interview) throw new InterviewNotFoundError()
+  return interview
 }
 
 const checkAvailabilityArgsSchema = z.object({
@@ -84,25 +84,28 @@ const findSlotsArgsSchema = z.object({
   durationMinutes: z.number().int().positive().max(24 * 60),
 })
 
-const createAppointmentArgsSchema = publicCreateAppointmentInputSchema
+const scheduleInterviewArgsSchema = publicCreateInterviewInputSchema
 
 const rescheduleArgsSchema = z.object({
   newStart: z.coerce.date(),
   newDurationMinutes: z.number().int().positive().max(24 * 60).optional(),
 })
 
-const listAppointmentsArgsSchema = z.object({
+const listInterviewsArgsSchema = z.object({
   from: z.coerce.date(),
   to: z.coerce.date(),
+  interviewType: z
+    .enum(['hr_screening', 'technical', 'coding', 'system_design', 'behavioral', 'managerial', 'final', 'panel', 'custom'])
+    .optional(),
 })
 
 const adminRescheduleArgsSchema = z.object({
-  appointmentId: z.string().min(1),
+  interviewId: z.string().min(1),
   newStart: z.coerce.date(),
   newDurationMinutes: z.number().int().positive().max(24 * 60).optional(),
 })
 
-const adminCancelArgsSchema = z.object({ appointmentId: z.string().min(1) })
+const adminCancelArgsSchema = z.object({ interviewId: z.string().min(1) })
 
 const noArgsSchema = z.object({})
 
@@ -111,7 +114,7 @@ const TOOLS: ToolDefinitionInternal[] = [
     contexts: ['guest', 'admin'],
     definition: {
       name: 'check_availability',
-      description: 'Check whether a specific start time and duration is available. Returns alternatives if not.',
+      description: 'Check whether a specific start time and duration is available for an interview. Returns alternatives if not.',
       parameters: {
         type: 'object',
         properties: {
@@ -142,7 +145,7 @@ const TOOLS: ToolDefinitionInternal[] = [
     contexts: ['guest', 'admin'],
     definition: {
       name: 'find_available_slots',
-      description: 'List open slots of a given duration within a date range.',
+      description: 'List open interview slots of a given duration within a date range.',
       parameters: {
         type: 'object',
         properties: {
@@ -172,35 +175,44 @@ const TOOLS: ToolDefinitionInternal[] = [
   {
     contexts: ['guest', 'admin'],
     definition: {
-      name: 'create_appointment',
-      description: "Book a new appointment. Always confirm availability with the user before calling this.",
+      name: 'schedule_interview',
+      description:
+        "Book a new interview. Always confirm availability with the user before calling this, and collect the candidate's name and email first.",
       parameters: {
         type: 'object',
         properties: {
-          name: { type: 'string' },
-          email: { type: 'string' },
-          purpose: { type: 'string' },
+          title: { type: 'string' },
+          interviewType: {
+            type: 'string',
+            enum: ['hr_screening', 'technical', 'coding', 'system_design', 'behavioral', 'managerial', 'final', 'panel', 'custom'],
+          },
+          round: { type: 'number' },
+          locationType: { type: 'string', enum: ['video', 'phone', 'onsite', 'custom'] },
+          candidateName: { type: 'string' },
+          candidateEmail: { type: 'string' },
           startAt: { type: 'string', format: 'date-time' },
           durationMinutes: { type: 'number' },
           timezone: { type: 'string', description: 'IANA timezone, e.g. America/New_York' },
         },
-        required: ['name', 'email', 'purpose', 'startAt', 'durationMinutes', 'timezone'],
+        required: ['title', 'candidateName', 'candidateEmail', 'startAt', 'durationMinutes', 'timezone'],
       },
     },
-    argsSchema: createAppointmentArgsSchema,
+    argsSchema: scheduleInterviewArgsSchema,
     handler: async (rawArgs, context) => {
-      const args = rawArgs as z.infer<typeof createAppointmentArgsSchema>
+      const args = rawArgs as z.infer<typeof scheduleInterviewArgsSchema>
       try {
-        const { appointment, manageToken } = await createAppointment({ ...args, source: 'ai' })
+        const { interview, manageToken } = await createInterview({ ...args, source: 'ai' })
         const summary = {
-          id: appointment._id.toString(),
-          startAt: appointment.startAt.toISOString(),
-          endAt: appointment.endAt.toISOString(),
-          status: appointment.status,
+          id: interview._id.toString(),
+          title: interview.title,
+          interviewType: interview.interviewType,
+          startAt: interview.startAt.toISOString(),
+          endAt: interview.endAt.toISOString(),
+          status: interview.status,
         }
         const action = {
-          type: 'appointment_created',
-          appointment: summary,
+          type: 'interview_created',
+          interview: summary,
           ...(context.mode === 'guest' ? { manageToken } : {}),
         }
         return { resultJson: JSON.stringify({ ...summary, booked: true }), action }
@@ -212,21 +224,23 @@ const TOOLS: ToolDefinitionInternal[] = [
   {
     contexts: ['guest'],
     definition: {
-      name: 'get_my_appointment',
-      description: "Look up the details of the appointment already associated with this conversation, if any.",
+      name: 'get_my_interview',
+      description: "Look up the details of the interview already associated with this conversation, if any.",
       parameters: { type: 'object', properties: {} },
     },
     argsSchema: noArgsSchema,
     handler: async (_rawArgs, context) => {
       try {
-        const appointment = await resolveGuestAppointmentOrThrow(context)
+        const interview = await resolveGuestInterviewOrThrow(context)
         return {
           resultJson: JSON.stringify({
-            id: appointment._id.toString(),
-            purpose: appointment.purpose,
-            startAt: appointment.startAt.toISOString(),
-            endAt: appointment.endAt.toISOString(),
-            status: appointment.status,
+            id: interview._id.toString(),
+            title: interview.title,
+            interviewType: interview.interviewType,
+            round: interview.round,
+            startAt: interview.startAt.toISOString(),
+            endAt: interview.endAt.toISOString(),
+            status: interview.status,
           }),
         }
       } catch (error) {
@@ -237,8 +251,8 @@ const TOOLS: ToolDefinitionInternal[] = [
   {
     contexts: ['guest'],
     definition: {
-      name: 'reschedule_my_appointment',
-      description: "Reschedule the appointment already associated with this conversation to a new time.",
+      name: 'reschedule_my_interview',
+      description: "Reschedule the interview already associated with this conversation to a new time.",
       parameters: {
         type: 'object',
         properties: {
@@ -252,15 +266,15 @@ const TOOLS: ToolDefinitionInternal[] = [
     handler: async (rawArgs, context) => {
       const args = rawArgs as z.infer<typeof rescheduleArgsSchema>
       try {
-        const existing = await resolveGuestAppointmentOrThrow(context)
-        const updated = await rescheduleAppointment(existing._id.toString(), args.newStart, args.newDurationMinutes)
+        const existing = await resolveGuestInterviewOrThrow(context)
+        const updated = await rescheduleInterview(existing._id.toString(), args.newStart, args.newDurationMinutes)
         const summary = {
           id: updated._id.toString(),
           startAt: updated.startAt.toISOString(),
           endAt: updated.endAt.toISOString(),
           status: updated.status,
         }
-        return { resultJson: JSON.stringify(summary), action: { type: 'appointment_updated', appointment: summary } }
+        return { resultJson: JSON.stringify(summary), action: { type: 'interview_updated', interview: summary } }
       } catch (error) {
         return { resultJson: JSON.stringify(describeError(error)) }
       }
@@ -269,17 +283,17 @@ const TOOLS: ToolDefinitionInternal[] = [
   {
     contexts: ['guest'],
     definition: {
-      name: 'cancel_my_appointment',
-      description: "Cancel the appointment already associated with this conversation.",
+      name: 'cancel_my_interview',
+      description: "Cancel the interview already associated with this conversation.",
       parameters: { type: 'object', properties: {} },
     },
     argsSchema: noArgsSchema,
     handler: async (_rawArgs, context) => {
       try {
-        const existing = await resolveGuestAppointmentOrThrow(context)
-        const cancelled = await cancelAppointment(existing._id.toString())
+        const existing = await resolveGuestInterviewOrThrow(context)
+        const cancelled = await cancelInterview(existing._id.toString())
         const summary = { id: cancelled._id.toString(), status: cancelled.status }
-        return { resultJson: JSON.stringify(summary), action: { type: 'appointment_cancelled', appointment: summary } }
+        return { resultJson: JSON.stringify(summary), action: { type: 'interview_cancelled', interview: summary } }
       } catch (error) {
         return { resultJson: JSON.stringify(describeError(error)) }
       }
@@ -288,32 +302,46 @@ const TOOLS: ToolDefinitionInternal[] = [
   {
     contexts: ['admin'],
     definition: {
-      name: 'list_appointments',
-      description: 'List appointments (any status, full detail) within a date range.',
+      name: 'list_interviews',
+      description:
+        'List interviews (any status, full detail) within a date range, optionally filtered by interview type — use this to answer questions like "how many technical interviews this week" by counting the returned items.',
       parameters: {
         type: 'object',
         properties: {
           from: { type: 'string', format: 'date-time' },
           to: { type: 'string', format: 'date-time' },
+          interviewType: {
+            type: 'string',
+            enum: ['hr_screening', 'technical', 'coding', 'system_design', 'behavioral', 'managerial', 'final', 'panel', 'custom'],
+          },
         },
         required: ['from', 'to'],
       },
     },
-    argsSchema: listAppointmentsArgsSchema,
+    argsSchema: listInterviewsArgsSchema,
     handler: async (rawArgs) => {
-      const args = rawArgs as z.infer<typeof listAppointmentsArgsSchema>
+      const args = rawArgs as z.infer<typeof listInterviewsArgsSchema>
       try {
-        const appointments = await listAppointmentsInRange(args.from, args.to)
-        const truncated = appointments.slice(0, MAX_APPOINTMENTS_RETURNED)
-        const summaries = truncated.map((appointment) => ({
-          id: appointment._id.toString(),
-          name: appointment.name,
-          startAt: appointment.startAt.toISOString(),
-          endAt: appointment.endAt.toISOString(),
-          status: appointment.status,
+        const interviews = await listInterviewsInRange(args.from, args.to)
+        const filtered = args.interviewType
+          ? interviews.filter((interview) => interview.interviewType === args.interviewType)
+          : interviews
+        const truncated = filtered.slice(0, MAX_INTERVIEWS_RETURNED)
+        const summaries = truncated.map((interview) => ({
+          id: interview._id.toString(),
+          title: interview.title,
+          interviewType: interview.interviewType,
+          candidateName: interview.candidateName,
+          startAt: interview.startAt.toISOString(),
+          endAt: interview.endAt.toISOString(),
+          status: interview.status,
         }))
         return {
-          resultJson: JSON.stringify({ appointments: summaries, truncated: appointments.length > truncated.length }),
+          resultJson: JSON.stringify({
+            interviews: summaries,
+            totalMatching: filtered.length,
+            truncated: filtered.length > truncated.length,
+          }),
         }
       } catch (error) {
         return { resultJson: JSON.stringify(describeError(error)) }
@@ -323,30 +351,30 @@ const TOOLS: ToolDefinitionInternal[] = [
   {
     contexts: ['admin'],
     definition: {
-      name: 'reschedule_appointment_by_id',
-      description: 'Reschedule any appointment by its ID.',
+      name: 'reschedule_interview_by_id',
+      description: 'Reschedule any interview by its ID.',
       parameters: {
         type: 'object',
         properties: {
-          appointmentId: { type: 'string' },
+          interviewId: { type: 'string' },
           newStart: { type: 'string', format: 'date-time' },
           newDurationMinutes: { type: 'number' },
         },
-        required: ['appointmentId', 'newStart'],
+        required: ['interviewId', 'newStart'],
       },
     },
     argsSchema: adminRescheduleArgsSchema,
     handler: async (rawArgs) => {
       const args = rawArgs as z.infer<typeof adminRescheduleArgsSchema>
       try {
-        const updated = await rescheduleAppointment(args.appointmentId, args.newStart, args.newDurationMinutes)
+        const updated = await rescheduleInterview(args.interviewId, args.newStart, args.newDurationMinutes)
         const summary = {
           id: updated._id.toString(),
           startAt: updated.startAt.toISOString(),
           endAt: updated.endAt.toISOString(),
           status: updated.status,
         }
-        return { resultJson: JSON.stringify(summary), action: { type: 'appointment_updated', appointment: summary } }
+        return { resultJson: JSON.stringify(summary), action: { type: 'interview_updated', interview: summary } }
       } catch (error) {
         return { resultJson: JSON.stringify(describeError(error)) }
       }
@@ -355,21 +383,21 @@ const TOOLS: ToolDefinitionInternal[] = [
   {
     contexts: ['admin'],
     definition: {
-      name: 'cancel_appointment_by_id',
-      description: 'Cancel any appointment by its ID.',
+      name: 'cancel_interview_by_id',
+      description: 'Cancel any interview by its ID.',
       parameters: {
         type: 'object',
-        properties: { appointmentId: { type: 'string' } },
-        required: ['appointmentId'],
+        properties: { interviewId: { type: 'string' } },
+        required: ['interviewId'],
       },
     },
     argsSchema: adminCancelArgsSchema,
     handler: async (rawArgs) => {
       const args = rawArgs as z.infer<typeof adminCancelArgsSchema>
       try {
-        const cancelled = await cancelAppointment(args.appointmentId)
+        const cancelled = await cancelInterview(args.interviewId)
         const summary = { id: cancelled._id.toString(), status: cancelled.status }
-        return { resultJson: JSON.stringify(summary), action: { type: 'appointment_cancelled', appointment: summary } }
+        return { resultJson: JSON.stringify(summary), action: { type: 'interview_cancelled', interview: summary } }
       } catch (error) {
         return { resultJson: JSON.stringify(describeError(error)) }
       }

@@ -1,16 +1,32 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from '@/lib/apiClient'
+import type { InterviewLocationType, InterviewType } from '@/features/booking/api/bookingApi'
 
-export interface AdminAppointment {
+export interface AdminInterview {
   id: string
-  name: string
-  email: string
-  purpose: string
+  title: string
+  description: string
+  interviewType: InterviewType
+  round: number
+  locationType: InterviewLocationType
+  meetingUrl: string
+  address: string
+  interviewerName: string
+  interviewerEmail: string
+  candidateName: string
+  candidateEmail: string
+  candidatePhone: string
+  candidateLinkedIn: string
+  candidateGithub: string
+  candidatePortfolioUrl: string
+  candidateResumeUrl: string
+  candidateNotes: string
   startAt: string
   endAt: string
   durationMinutes: number
   timezone: string
   status: 'pending' | 'confirmed' | 'cancelled'
   source: 'ai' | 'admin' | 'public'
+  rescheduleHistory: Array<{ previousStartAt: string; previousEndAt: string; changedAt: string }>
 }
 
 export interface WorkingHoursEntry {
@@ -31,6 +47,9 @@ export interface ScheduleConfig {
   timezone: string
   workingHours: WorkingHoursEntry[]
   breaks: RecurringBreakEntry[]
+  bufferMinutes: number
+  minNoticeMinutes: number
+  maxBookingWindowDays: number
 }
 
 export interface AdminBlockedSlot {
@@ -38,6 +57,48 @@ export interface AdminBlockedSlot {
   label: string
   startAt: string
   endAt: string
+}
+
+export interface DashboardInterviewSummary {
+  id: string
+  title: string
+  interviewType: InterviewType
+  round: number
+  candidateName: string
+  interviewerName: string
+  startAt: string
+  endAt: string
+  status: 'pending' | 'confirmed' | 'cancelled'
+}
+
+export interface DashboardStats {
+  todayCount: number
+  upcomingCount: number
+  totalScheduled: number
+  cancelledCount: number
+  rescheduledCount: number
+  upcomingInterviews: DashboardInterviewSummary[]
+  scheduleConfigured: boolean
+}
+
+export interface CandidateSummary {
+  candidateEmail: string
+  candidateName: string
+  candidatePhone: string
+  totalInterviews: number
+  upcomingCount: number
+  lastInterviewAt: string
+}
+
+export interface CandidateInterviewSummary {
+  id: string
+  title: string
+  interviewType: InterviewType
+  round: number
+  status: 'pending' | 'confirmed' | 'cancelled'
+  startAt: string
+  endAt: string
+  source: 'ai' | 'admin' | 'public'
 }
 
 // --- Auth ---
@@ -54,37 +115,45 @@ export function adminMe(): Promise<{ admin: { adminId: string; email: string } }
   return apiGet('/admin/auth/me')
 }
 
-// --- Appointments ---
+// --- Interviews ---
 
-export function fetchAdminAppointments(from: Date, to: Date): Promise<{ appointments: AdminAppointment[] }> {
-  return apiGet('/admin/appointments', { from: from.toISOString(), to: to.toISOString() })
+export function fetchAdminInterviews(from: Date, to: Date): Promise<{ interviews: AdminInterview[] }> {
+  return apiGet('/admin/interviews', { from: from.toISOString(), to: to.toISOString() })
 }
 
-export interface AdminCreateAppointmentInput {
-  name: string
-  email: string
-  purpose: string
+export interface AdminCreateInterviewInput {
+  title: string
+  description?: string
+  interviewType?: InterviewType
+  round?: number
+  locationType?: InterviewLocationType
+  meetingUrl?: string
+  address?: string
+  interviewerName?: string
+  interviewerEmail?: string
+  candidateName: string
+  candidateEmail: string
+  candidatePhone?: string
+  candidateNotes?: string
   startAt: string
   durationMinutes: number
   timezone: string
 }
 
-export function createAdminAppointment(
-  input: AdminCreateAppointmentInput,
-): Promise<{ appointment: AdminAppointment }> {
-  return apiPost('/admin/appointments', input)
+export function createAdminInterview(input: AdminCreateInterviewInput): Promise<{ interview: AdminInterview }> {
+  return apiPost('/admin/interviews', input)
 }
 
-export function rescheduleAdminAppointment(
+export function rescheduleAdminInterview(
   id: string,
   newStart: string,
   newDurationMinutes?: number,
-): Promise<{ appointment: AdminAppointment }> {
-  return apiPatch(`/admin/appointments/${id}`, { newStart, newDurationMinutes })
+): Promise<{ interview: AdminInterview }> {
+  return apiPatch(`/admin/interviews/${id}`, { newStart, newDurationMinutes })
 }
 
-export function cancelAdminAppointment(id: string): Promise<{ appointment: AdminAppointment }> {
-  return apiDelete(`/admin/appointments/${id}`)
+export function cancelAdminInterview(id: string): Promise<{ interview: AdminInterview }> {
+  return apiDelete(`/admin/interviews/${id}`)
 }
 
 // --- Schedule ---
@@ -113,4 +182,20 @@ export function createAdminBlockedSlot(
 
 export function deleteAdminBlockedSlot(id: string): Promise<{ ok: boolean }> {
   return apiDelete(`/admin/blocked-slots/${id}`)
+}
+
+// --- Dashboard ---
+
+export function fetchAdminDashboard(): Promise<DashboardStats> {
+  return apiGet('/admin/dashboard')
+}
+
+// --- Candidates ---
+
+export function fetchAdminCandidates(search?: string): Promise<{ candidates: CandidateSummary[] }> {
+  return apiGet('/admin/candidates', search ? { search } : undefined)
+}
+
+export function fetchAdminCandidateInterviews(email: string): Promise<{ interviews: CandidateInterviewSummary[] }> {
+  return apiGet(`/admin/candidates/${encodeURIComponent(email)}/interviews`)
 }

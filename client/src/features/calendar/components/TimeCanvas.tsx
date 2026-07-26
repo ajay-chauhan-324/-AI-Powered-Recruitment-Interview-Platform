@@ -11,8 +11,8 @@ import {
 } from '@/features/calendar/lib/layout'
 import { useCalendarView } from '@/features/calendar/hooks/useCalendarView'
 import { useCalendarRealtime } from '@/features/calendar/hooks/useCalendarRealtime'
-import type { CalendarAppointment, CalendarBlock } from '@/features/calendar/api/calendarApi'
-import { AppointmentTag } from './AppointmentTag'
+import type { CalendarInterview, CalendarBlock } from '@/features/calendar/api/calendarApi'
+import { InterviewTag } from './InterviewTag'
 import { BlockedRange } from './BlockedRange'
 import { NowIndicator } from './NowIndicator'
 
@@ -27,35 +27,34 @@ const HOUR_LABELS = Array.from({ length: 24 }, (_, hour) => {
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 /** Both Day and Week are tall 24-hour columns — scroll to a sensible working-hours
- * start on load instead of defaulting to midnight, so real appointments (and, on
+ * start on load instead of defaulting to midnight, so real interviews (and, on
  * Day view, the current-time line) are visible without the viewer scrolling first. */
 const DEFAULT_SCROLL_HOUR = 7
 const SWIPE_THRESHOLD_PX = 50
 
 // A stable reference (not a fresh `[]` literal per render) so hooks that depend on
-// "the appointments array" don't invalidate their memoization every render while loading.
-const EMPTY_APPOINTMENTS: CalendarAppointment[] = []
+// "the interviews array" don't invalidate their memoization every render while loading.
+const EMPTY_INTERVIEWS: CalendarInterview[] = []
 
 interface TimeCanvasProps {
   zoom: CanvasZoom
   anchorDate: Date
   onAnchorDateChange: (date: Date) => void
   onZoomChange: (zoom: CanvasZoom) => void
-  /** Tapping an available time on Day view (never a drag — CLAUDE.md §18) opens the booking panel. */
+  /** Tapping an available time on Day view (never a drag) opens the booking panel. */
   onSelectSlot: (start: Date) => void
 }
 
 /**
- * The Time Canvas, wired to the real backend (Phase 2-4). Appointments and
- * blocked time are the PUBLIC-safe read model (server/src/services/
- * calendarView.service.ts) — no name/email/purpose, since no authentication
- * exists yet (Phase 9 adds an authenticated admin variant with full detail).
+ * The Time Canvas, wired to the real backend. Interviews and blocked time are the
+ * PUBLIC-safe read model (server/src/services/calendarView.service.ts) — no
+ * candidateName/candidateEmail/title, since public candidates browsing the calendar never
+ * see another candidate's interview detail. An authenticated admin variant with full detail
+ * exists separately (AdminCalendarPage).
  *
- * Day view is tappable (CLAUDE.md §18 — a tap, never a drag) to open the
- * booking panel; a conflict on submit is surfaced by BookingPanel itself
- * (border-conflict/conflict-tint tokens), not here on the canvas. Week/Month
- * stay read-only navigation surfaces in this phase; drag-to-reschedule is
- * admin-only (Phase 9).
+ * Day view is tappable (a tap, never a drag) to open the booking panel; a conflict on submit
+ * is surfaced by the booking panel itself (border-conflict/conflict-tint tokens), not here on
+ * the canvas. Week/Month stay read-only navigation surfaces in the public view.
  */
 export function TimeCanvas({ zoom, anchorDate, onAnchorDateChange, onZoomChange, onSelectSlot }: TimeCanvasProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -155,7 +154,7 @@ function HourGridLines() {
 }
 
 interface ViewData {
-  appointments: CalendarAppointment[]
+  interviews: CalendarInterview[]
   blockedSlots: CalendarBlock[]
 }
 
@@ -174,9 +173,9 @@ function DayFoundation({
   recentlyChangedIds: ReadonlySet<string>
   onSelectSlot: (start: Date) => void
 }) {
-  const appointments = data?.appointments ?? []
+  const interviews = data?.interviews ?? []
   const blockedSlots = data?.blockedSlots ?? []
-  const isEmpty = data && appointments.length === 0 && blockedSlots.length === 0
+  const isEmpty = data && interviews.length === 0 && blockedSlots.length === 0
 
   function handleRailClick(event: React.MouseEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect()
@@ -194,7 +193,7 @@ function DayFoundation({
           <span aria-hidden="true" className="text-sm text-amber-600">
             ⌁
           </span>
-          <p className="text-sm text-ink-700">Nothing scheduled for this day.</p>
+          <p className="text-sm text-ink-700">No interviews scheduled for this day.</p>
         </div>
       )}
       <div className="flex">
@@ -210,7 +209,7 @@ function DayFoundation({
           onClick={handleRailClick}
           role="button"
           tabIndex={-1}
-          aria-label="Tap a time to book an appointment"
+          aria-label="Tap a time to book an interview"
         >
           <HourGridLines />
           {blockedSlots.map((block) => {
@@ -218,21 +217,21 @@ function DayFoundation({
             if (!clipped) return null
             return <BlockedRange key={block.id} label={block.label} startAt={clipped.start} endAt={clipped.end} />
           })}
-          {appointments.map((appointment) => {
+          {interviews.map((interview) => {
             const clipped = clipRangeToDay(
-              new Date(appointment.startAt),
-              new Date(appointment.endAt),
+              new Date(interview.startAt),
+              new Date(interview.endAt),
               range.start,
               range.end,
             )
             if (!clipped) return null
             return (
-              <AppointmentTag
-                key={appointment.id}
+              <InterviewTag
+                key={interview.id}
                 startAt={clipped.start}
                 endAt={clipped.end}
-                status={appointment.status}
-                highlighted={recentlyChangedIds.has(appointment.id)}
+                status={interview.status}
+                highlighted={recentlyChangedIds.has(interview.id)}
               />
             )
           })}
@@ -252,7 +251,7 @@ function WeekFoundation({
   data: ViewData | undefined
   recentlyChangedIds: ReadonlySet<string>
 }) {
-  const appointments = data?.appointments ?? []
+  const interviews = data?.interviews ?? []
   const blockedSlots = data?.blockedSlots ?? []
 
   const dayBounds = Array.from({ length: 7 }, (_, dayIndex) => {
@@ -306,24 +305,24 @@ function WeekFoundation({
                 if (!clipped) return null
                 return <BlockedRange key={block.id} label={block.label} startAt={clipped.start} endAt={clipped.end} />
               })}
-            {appointments
-              .filter((appointment) => weekdayIndexMondayFirst(new Date(appointment.startAt)) === dayIndex)
-              .map((appointment) => {
+            {interviews
+              .filter((interview) => weekdayIndexMondayFirst(new Date(interview.startAt)) === dayIndex)
+              .map((interview) => {
                 const clipped = clipRangeToDay(
-                  new Date(appointment.startAt),
-                  new Date(appointment.endAt),
+                  new Date(interview.startAt),
+                  new Date(interview.endAt),
                   bounds.start,
                   bounds.end,
                 )
                 if (!clipped) return null
                 return (
-                  <AppointmentTag
-                    key={appointment.id}
+                  <InterviewTag
+                    key={interview.id}
                     startAt={clipped.start}
                     endAt={clipped.end}
-                    status={appointment.status}
+                    status={interview.status}
                     compact
-                    highlighted={recentlyChangedIds.has(appointment.id)}
+                    highlighted={recentlyChangedIds.has(interview.id)}
                   />
                 )
               })}
@@ -344,17 +343,17 @@ function MonthFoundation({
   onSelectDay: (date: Date) => void
 }) {
   const cells = useMemo(() => getMonthGridCells(anchorDate), [anchorDate])
-  const appointments = data?.appointments ?? EMPTY_APPOINTMENTS
+  const interviews = data?.interviews ?? EMPTY_INTERVIEWS
 
   const countsByDateKey = useMemo(() => {
     const counts = new Map<string, number>()
-    for (const appointment of appointments) {
-      const date = new Date(appointment.startAt)
+    for (const interview of interviews) {
+      const date = new Date(interview.startAt)
       const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
       counts.set(key, (counts.get(key) ?? 0) + 1)
     }
     return counts
-  }, [appointments])
+  }, [interviews])
 
   return (
     <div className="mx-auto w-full px-4 py-4 sm:px-6">
@@ -382,7 +381,7 @@ function MonthFoundation({
               onClick={() => onSelectDay(date)}
               aria-label={
                 count > 0
-                  ? `${cellLabel}${isToday ? ' (today)' : ''}, ${count} appointment${count === 1 ? '' : 's'}. View day.`
+                  ? `${cellLabel}${isToday ? ' (today)' : ''}, ${count} interview${count === 1 ? '' : 's'}. View day.`
                   : `${cellLabel}${isToday ? ' (today)' : ''}. View day.`
               }
               className={

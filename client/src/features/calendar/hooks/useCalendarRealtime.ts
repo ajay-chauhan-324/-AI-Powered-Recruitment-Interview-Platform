@@ -12,13 +12,12 @@ import { io } from 'socket.io-client'
  * client reconnects automatically by default, so no custom reconnection
  * logic is needed here.
  *
- * Returns the set of appointment ids that changed in roughly the last
+ * Returns the set of interview ids that changed in roughly the last
  * second, so the calendar can apply a brief visual highlight pulse
- * (CLAUDE.md §21 "brief visual highlight on the affected region") without
- * ever forcing a page refresh.
+ * without ever forcing a page refresh.
  */
 
-interface AppointmentEventPayload {
+interface InterviewEventPayload {
   id: string
   startAt: string
   endAt: string
@@ -26,7 +25,7 @@ interface AppointmentEventPayload {
 }
 
 const HIGHLIGHT_DURATION_MS = 900
-const EVENT_NAMES = ['appointment.created', 'appointment.updated', 'appointment.cancelled'] as const
+const EVENT_NAMES = ['interview.created', 'interview.updated', 'interview.cancelled'] as const
 
 export function useCalendarRealtime() {
   const queryClient = useQueryClient()
@@ -35,7 +34,7 @@ export function useCalendarRealtime() {
   useEffect(() => {
     const socket = io('/calendar', { path: '/socket.io' })
 
-    function handleChange(payload: AppointmentEventPayload) {
+    function handleChange(payload: InterviewEventPayload) {
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
 
       setRecentlyChangedIds((prev) => new Set(prev).add(payload.id))

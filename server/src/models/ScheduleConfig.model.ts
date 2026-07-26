@@ -38,6 +38,12 @@ const scheduleConfigSchema = new Schema(
     timezone: { type: String, required: true },
     workingHours: { type: [workingHoursSchema], required: true, default: [] },
     breaks: { type: [recurringBreakSchema], required: true, default: [] },
+    // Interview-scheduling booking rules (owned here, applied by AvailabilityService — never
+    // duplicated in the AI layer or the frontend). All default to 0/off so existing behavior
+    // is unchanged until an admin explicitly configures them.
+    bufferMinutes: { type: Number, required: true, min: 0, max: 1440, default: 0 },
+    minNoticeMinutes: { type: Number, required: true, min: 0, max: 10_080, default: 0 },
+    maxBookingWindowDays: { type: Number, required: true, min: 1, max: 365, default: 60 },
   },
   { timestamps: true },
 )

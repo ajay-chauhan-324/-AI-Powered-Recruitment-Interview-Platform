@@ -4,6 +4,46 @@
 
 # AI-POWERED SMART APPOINTMENT BOOKING SYSTEM
 
+==================================================
+PRODUCT PIVOT: INTERVIEW SCHEDULING PLATFORM
+==================================================
+
+This product has been evolved from a generic appointment booking system into
+**The Ledger — Interview Scheduling & Management Platform**: a product used by
+companies/recruiters/interviewers to publish interview availability and let
+candidates book interview slots (technical, HR/screening, coding, system
+design, behavioral, managerial, final, and panel rounds).
+
+Everything below this notice (product vision, design system, architecture,
+availability engine, concurrency/timezone rules, AI architecture, security
+principles, phase plan) remains the operative engineering standard — the
+pivot does not relax any of it. Sections 2 (Product Vision), 3 (Core
+Principle), and 15 (Appointment/Interview Data) are superseded by the
+interview-domain description that follows; every other section (availability
+engine, concurrency, timezone, AI rules, security, tech stack, architecture)
+applies unchanged to the interview domain.
+
+Domain rename: `Appointment` → `Interview` throughout the codebase (model,
+service, controller, routes, validators, tests) — not just additive fields.
+Candidate contact fields (`name`/`email`) become `candidateName`/
+`candidateEmail`, with new optional candidate fields (phone, LinkedIn,
+GitHub, portfolio, resume link, notes). New interview-specific fields:
+`title`, `description`, `interviewType`, `round`, `locationType`,
+`meetingUrl`, `address`, `interviewerName`/`interviewerEmail`.
+`AvailabilityService`, `ScheduleConfig`, `BlockedSlot`, and `BookingLock`
+are unchanged — they are correct, generic, and already tested; renaming them
+would be churn without benefit.
+
+Explicitly out of scope, documented rather than faked: real-time video
+calling (needs a third-party provider and credentials not available in this
+environment — the integration point is built and documented, not faked),
+resume *file* upload (no file-storage infrastructure exists — a resume
+*link* field is supported instead), and multi-interviewer team accounts (a
+single interviewer name/email per interview — there is no multi-admin-user
+system to extend here).
+
+==================================================
+
 You are operating as a Principal Software Engineer, Staff-level System Architect, Product Engineer, AI Engineer, Security Engineer, QA Engineer, and Code Reviewer.
 
 Your job is to build this product as a production-quality software system.
@@ -77,15 +117,26 @@ For major ambiguity, stop and explain the decision required.
 2. PRODUCT VISION
 =================
 
-This is an AI-powered smart appointment booking system.
+This is an AI-powered interview scheduling and management platform. A
+company/recruiter/interviewer publishes interview availability; candidates
+book interview slots against it. This is not a generic calendar — every
+screen should communicate that it is an interview scheduling product.
 
-Users can naturally express requests such as:
+Candidates and the AI assistant can naturally express requests such as:
 
-* "Book me tomorrow at 3 PM."
-* "I need an appointment next Monday morning."
-* "Is 4 PM available?"
-* "Move my appointment to Friday."
-* "Cancel my appointment."
+* "Find me a technical interview next week."
+* "I'm available after 5 PM."
+* "Is 4 PM available for my screening call?"
+* "Can I reschedule my interview?"
+* "What interview do I have tomorrow?"
+
+Recruiters/admins and the AI assistant can naturally express requests such as:
+
+* "Show today's interviews."
+* "Find the next available slot."
+* "Block Friday afternoon."
+* "Move this interview to tomorrow."
+* "How many technical interviews are scheduled this week?"
 
 The system must:
 
@@ -96,22 +147,28 @@ The system must:
 5. Check availability.
 6. Detect conflicts.
 7. Suggest alternatives.
-8. Collect name, email, and appointment purpose.
-9. Create a valid appointment.
+8. Collect candidate name, email, and other candidate details (phone,
+   LinkedIn/GitHub/portfolio, resume link, notes) relevant to the interview
+   type.
+9. Create a valid interview booking with the correct interview type, round,
+   and location (video/phone/onsite/custom).
 10. Synchronize the calendar in real time.
 11. Support rescheduling.
 12. Support cancellation.
-13. Preserve appointment history.
+13. Preserve interview history (including reschedule/cancellation history).
 
 The system must prevent:
 
 * Double bookings.
-* Overlapping appointments.
+* Overlapping interviews.
 * Invalid time ranges.
 * Bookings outside working hours.
 * Bookings during breaks.
 * Bookings during blocked periods.
-* Unauthorized appointment management.
+* Bookings inside a configured buffer window around another interview.
+* Bookings inside the minimum-notice window or beyond the maximum booking
+  window.
+* Unauthorized interview or candidate-data access.
 
 ==================================================
 3. CORE PRODUCT PRINCIPLE
@@ -488,21 +545,35 @@ Explicitly test:
 The displayed timezone and time format must be explicit.
 
 ==================================================
-15. APPOINTMENT DATA
-====================
+15. INTERVIEW DATA
+==================
 
-Appointment must support:
+Interview must support:
 
+* title
+* description
+* interviewType (hr_screening / technical / coding / system_design /
+  behavioral / managerial / final / panel / custom)
+* round (a simple ordinal — Round 1, Round 2, ...)
+* locationType (video / phone / onsite / custom)
+* meetingUrl
+* address
+* interviewerName / interviewerEmail
+* candidateName
+* candidateEmail
+* candidatePhone (optional)
+* candidateLinkedIn / candidateGithub / candidatePortfolioUrl (optional)
+* candidateResumeUrl (optional — a link, not a file upload; no file-storage
+  infrastructure exists in this project)
+* candidateNotes (optional — candidate's own notes/questions at booking time)
 * startAt
 * endAt
 * duration
 * timezone
-* name
-* email
-* purpose
 * status
 * source
 * manage token hash
+* rescheduleHistory (previous start/end + when it changed)
 * createdAt
 * updatedAt
 
@@ -514,7 +585,7 @@ Statuses:
 * completed
 * no_show
 
-Cancellation must not hard-delete historical appointments.
+Cancellation must not hard-delete historical interviews.
 
 ==================================================
 16. AI ARCHITECTURE

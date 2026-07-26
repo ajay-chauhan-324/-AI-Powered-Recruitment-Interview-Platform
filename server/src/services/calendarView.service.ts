@@ -1,19 +1,20 @@
-import { AppointmentModel } from '../models/Appointment.model.js'
+import { InterviewModel } from '../models/Interview.model.js'
 import { BlockedSlotModel } from '../models/BlockedSlot.model.js'
 import { BookingValidationError } from './booking.errors.js'
 
 const MAX_QUERY_RANGE_DAYS = 62
 
 /**
- * The PUBLIC-safe calendar read model. No authentication exists yet
- * (Phase 9 adds it), so this is the only calendar view any caller gets for
- * now — it deliberately excludes name/email/purpose. Cancelled appointments
- * are also excluded: they don't represent current busy time and historical
- * visibility is an admin concern (CLAUDE.md §8), not a public one. An
- * authenticated admin variant with full detail and history is Phase 9 work.
+ * The PUBLIC-safe calendar read model — no authentication required, so this deliberately
+ * excludes candidateName/candidateEmail/title/interviewType/notes and every other
+ * candidate- or interview-identifying detail; it only ever says "this time is busy."
+ * Cancelled interviews are also excluded: they don't represent current busy time, and
+ * historical visibility is an admin concern, not a public one. An authenticated admin
+ * variant with full detail and history exists separately (interview.service.ts's
+ * listInterviewsInRange).
  */
 
-export interface PublicCalendarAppointment {
+export interface PublicCalendarInterview {
   id: string
   startAt: Date
   endAt: Date
@@ -28,7 +29,7 @@ export interface PublicCalendarBlock {
 }
 
 export interface PublicCalendarView {
-  appointments: PublicCalendarAppointment[]
+  interviews: PublicCalendarInterview[]
   blockedSlots: PublicCalendarBlock[]
 }
 
@@ -37,8 +38,8 @@ export async function getPublicCalendarView(from: Date, to: Date): Promise<Publi
     throw new BookingValidationError(`Calendar queries are limited to ${MAX_QUERY_RANGE_DAYS} days at a time.`)
   }
 
-  const [appointments, blockedSlots] = await Promise.all([
-    AppointmentModel.find({
+  const [interviews, blockedSlots] = await Promise.all([
+    InterviewModel.find({
       status: { $in: ['pending', 'confirmed'] },
       startAt: { $lt: to },
       endAt: { $gt: from },
@@ -49,11 +50,11 @@ export async function getPublicCalendarView(from: Date, to: Date): Promise<Publi
   ])
 
   return {
-    appointments: appointments.map((appointment) => ({
-      id: appointment._id.toString(),
-      startAt: appointment.startAt,
-      endAt: appointment.endAt,
-      status: appointment.status as 'pending' | 'confirmed',
+    interviews: interviews.map((interview) => ({
+      id: interview._id.toString(),
+      startAt: interview.startAt,
+      endAt: interview.endAt,
+      status: interview.status as 'pending' | 'confirmed',
     })),
     blockedSlots: blockedSlots.map((block) => ({
       id: block._id.toString(),

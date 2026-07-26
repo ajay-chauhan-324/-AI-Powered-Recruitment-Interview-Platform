@@ -5,7 +5,7 @@ export interface ConversationTurn {
   content: string
 }
 
-export interface AiAppointmentSummary {
+export interface AiInterviewSummary {
   id: string
   startAt?: string
   endAt?: string
@@ -15,9 +15,9 @@ export interface AiAppointmentSummary {
 export type AiAction =
   | { type: 'availability'; available: boolean; alternatives?: Array<{ start: string; end: string }> }
   | { type: 'slots'; slots: Array<{ start: string; end: string }> }
-  | { type: 'appointment_created'; appointment: AiAppointmentSummary; manageToken?: string }
-  | { type: 'appointment_updated'; appointment: AiAppointmentSummary }
-  | { type: 'appointment_cancelled'; appointment: AiAppointmentSummary }
+  | { type: 'interview_created'; interview: AiInterviewSummary; manageToken?: string }
+  | { type: 'interview_updated'; interview: AiInterviewSummary }
+  | { type: 'interview_cancelled'; interview: AiInterviewSummary }
   | { type: 'blocked_slot_created'; blockedSlot: { id: string; label: string; startAt: string; endAt: string } }
 
 export interface AiChatResponse {

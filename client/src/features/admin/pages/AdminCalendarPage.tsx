@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchAdminAppointments, fetchAdminBlockedSlots, adminLogout, type AdminAppointment } from '@/features/admin/api/adminApi'
-import { AdminAppointmentPanel } from '@/features/admin/components/AdminAppointmentPanel'
-import { AdminBookingPanel } from '@/features/admin/components/AdminBookingPanel'
-import { AppointmentTag } from '@/features/calendar/components/AppointmentTag'
+import { useQuery } from '@tanstack/react-query'
+import { fetchAdminInterviews, fetchAdminBlockedSlots, type AdminInterview } from '@/features/admin/api/adminApi'
+import { AdminNav } from '@/features/admin/components/AdminNav'
+import { AdminInterviewPanel } from '@/features/admin/components/AdminInterviewPanel'
+import { AdminNewInterviewPanel } from '@/features/admin/components/AdminNewInterviewPanel'
 import { BlockedRange } from '@/features/calendar/components/BlockedRange'
+import { InterviewTag } from '@/features/calendar/components/InterviewTag'
 import { NowIndicator } from '@/features/calendar/components/NowIndicator'
 import { getDayRange, addPeriod, isSameLocalDay } from '@/lib/dateContext'
 import { HOUR_ROW_HEIGHT, clipRangeToDay, minutesToOffset, offsetForDate, offsetToTimeOfDay } from '@/features/calendar/lib/layout'
@@ -22,18 +22,14 @@ const HOUR_LABELS = Array.from({ length: 24 }, (_, hour) => {
 const DEFAULT_SCROLL_HOUR = 7
 
 /**
- * Admin-only Day view: full appointment detail, all statuses (including
- * cancelled, per CLAUDE.md §8's historical-visibility requirement), create/
- * reschedule/cancel. Week/Month admin views are deferred — a single Day
- * view covers everything CLAUDE.md §20 asks for (view/reschedule/resize/
- * cancel/create/blocked-time) without the added surface area of porting
+ * Admin-only interview calendar: full detail, all statuses (including cancelled, for
+ * historical visibility), create/reschedule/cancel. A single Day view covers create/
+ * reschedule/resize/cancel/create-blocked-time without the added surface area of porting
  * the whole zoom-level system into an authenticated context.
  */
 export function AdminCalendarPage() {
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const [anchorDate, setAnchorDate] = useState(() => new Date())
-  const [selectedAppointment, setSelectedAppointment] = useState<AdminAppointment | null>(null)
+  const [selectedInterview, setSelectedInterview] = useState<AdminInterview | null>(null)
   const [bookingDraftStart, setBookingDraftStart] = useState<Date | null>(null)
 
   const range = useMemo(() => getDayRange(anchorDate), [anchorDate])
@@ -48,7 +44,7 @@ export function AdminCalendarPage() {
     node.scrollTop = Math.max(0, Math.min(defaultTarget, nowTarget))
   }, [anchorDate, now])
 
-  // The keyboard-accessible "New appointment" button's default time should reflect the day
+  // The keyboard-accessible "New interview" button's default time should reflect the day
   // being viewed, not always "now" — an admin who's navigated to next week and hits this
   // button expects a draft on the day they're looking at, same as clicking the rail would give.
   function defaultBookingStartForViewedDay(): Date {
@@ -58,21 +54,13 @@ export function AdminCalendarPage() {
     return start
   }
 
-  const appointmentsQuery = useQuery({
-    queryKey: ['admin-appointments', range.start.toISOString(), range.end.toISOString()],
-    queryFn: () => fetchAdminAppointments(range.start, range.end),
+  const interviewsQuery = useQuery({
+    queryKey: ['admin-interviews', range.start.toISOString(), range.end.toISOString()],
+    queryFn: () => fetchAdminInterviews(range.start, range.end),
   })
   const blockedSlotsQuery = useQuery({
     queryKey: ['admin-blocked-slots', range.start.toISOString(), range.end.toISOString()],
     queryFn: () => fetchAdminBlockedSlots(range.start, range.end),
-  })
-
-  const logoutMutation = useMutation({
-    mutationFn: () => adminLogout(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-session'] })
-      navigate('/admin/login', { replace: true })
-    },
   })
 
   function handleRailClick(event: React.MouseEvent<HTMLDivElement>) {
@@ -83,41 +71,15 @@ export function AdminCalendarPage() {
     setBookingDraftStart(clicked)
   }
 
-  const appointments = appointmentsQuery.data?.appointments ?? []
+  const interviews = interviewsQuery.data?.interviews ?? []
   const blockedSlots = blockedSlotsQuery.data?.blockedSlots ?? []
 
   return (
     <div className="flex h-dvh flex-col bg-paper-50">
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-hairline px-4 sm:px-6">
-        <div className="flex items-center gap-4">
-          <span className="font-mono text-sm font-medium tracking-wide text-ink-900">The Ledger — Admin</span>
-          <nav className="flex items-center text-sm text-ink-700">
-            <span className="flex min-h-11 items-center px-2 font-medium text-ink-900">Calendar</span>
-            <Link to="/admin/schedule" className="flex min-h-11 items-center px-2 hover:text-ink-900">
-              Schedule
-            </Link>
-          </nav>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setBookingDraftStart(defaultBookingStartForViewedDay())}
-            className="flex min-h-11 items-center rounded-pill border border-amber-600 bg-amber-100 px-3 text-sm font-medium text-ink-900 hover:bg-amber-100/70"
-          >
-            New appointment
-          </button>
-          <button
-            type="button"
-            onClick={() => logoutMutation.mutate()}
-            className="flex min-h-11 items-center px-2 text-sm text-ink-700 hover:text-ink-900"
-          >
-            Log out
-          </button>
-        </div>
-      </header>
+      <AdminNav />
 
       <div className="flex h-14 shrink-0 items-center gap-0.5 border-b border-hairline px-4 sm:px-6">
-        {/* min-h/w-11 = 44px minimum touch target (CLAUDE.md §24). */}
+        {/* min-h/w-11 = 44px minimum touch target. */}
         <button
           type="button"
           onClick={() => setAnchorDate((date) => addPeriod('day', date, -1))}
@@ -143,9 +105,16 @@ export function AdminCalendarPage() {
             Today
           </button>
         )}
-        <span className="ml-1 text-sm text-ink-700">
+        <span className="ml-1 flex-1 text-sm text-ink-700">
           {anchorDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
         </span>
+        <button
+          type="button"
+          onClick={() => setBookingDraftStart(defaultBookingStartForViewedDay())}
+          className="flex min-h-11 shrink-0 items-center rounded-pill border border-amber-600 bg-amber-100 px-3 text-sm font-medium text-ink-900 hover:bg-amber-100/70"
+        >
+          New interview
+        </button>
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
@@ -163,7 +132,7 @@ export function AdminCalendarPage() {
               onClick={handleRailClick}
               role="button"
               tabIndex={-1}
-              aria-label="Tap a time to create an appointment"
+              aria-label="Tap a time to create an interview"
             >
               <div>
                 {HOUR_LABELS.map((label) => (
@@ -175,19 +144,21 @@ export function AdminCalendarPage() {
                 if (!clipped) return null
                 return <BlockedRange key={block.id} label={block.label} startAt={clipped.start} endAt={clipped.end} />
               })}
-              {appointments.map((appointment) => {
-                const clipped = clipRangeToDay(new Date(appointment.startAt), new Date(appointment.endAt), range.start, range.end)
+              {interviews.map((interview) => {
+                const clipped = clipRangeToDay(new Date(interview.startAt), new Date(interview.endAt), range.start, range.end)
                 if (!clipped) return null
                 return (
-                  <AppointmentTag
-                    key={appointment.id}
+                  <InterviewTag
+                    key={interview.id}
                     startAt={clipped.start}
                     endAt={clipped.end}
-                    status={appointment.status}
-                    title={appointment.purpose}
-                    attendee={`${appointment.name} · ${appointment.email}`}
-                    source={appointment.source}
-                    onClick={() => setSelectedAppointment(appointment)}
+                    status={interview.status}
+                    title={interview.title}
+                    attendee={interview.candidateName}
+                    interviewType={interview.interviewType}
+                    round={interview.round}
+                    source={interview.source}
+                    onClick={() => setSelectedInterview(interview)}
                   />
                 )
               })}
@@ -197,11 +168,11 @@ export function AdminCalendarPage() {
         </div>
       </div>
 
-      {selectedAppointment && (
-        <AdminAppointmentPanel appointment={selectedAppointment} onClose={() => setSelectedAppointment(null)} />
+      {selectedInterview && (
+        <AdminInterviewPanel interview={selectedInterview} onClose={() => setSelectedInterview(null)} />
       )}
       {bookingDraftStart && (
-        <AdminBookingPanel initialStart={bookingDraftStart} onClose={() => setBookingDraftStart(null)} />
+        <AdminNewInterviewPanel initialStart={bookingDraftStart} onClose={() => setBookingDraftStart(null)} />
       )}
     </div>
   )

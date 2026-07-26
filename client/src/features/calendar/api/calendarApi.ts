@@ -1,12 +1,12 @@
 import { apiGet } from '@/lib/apiClient'
 
 /**
- * The PUBLIC-safe calendar read model (server/src/services/calendarView.service.ts).
- * No authentication exists yet (Phase 9 adds it), so this is deliberately minimal —
- * no name/email/purpose. An authenticated admin view with full appointment detail
- * and cancelled-appointment history is Phase 9 work.
+ * The PUBLIC-safe calendar read model (server/src/services/calendarView.service.ts) —
+ * deliberately minimal, no candidateName/candidateEmail/title/interviewType. An
+ * authenticated admin view with full interview detail and cancelled-interview history is
+ * a separate endpoint (adminApi.ts's fetchAdminInterviews).
  */
-export interface CalendarAppointment {
+export interface CalendarInterview {
   id: string
   startAt: string
   endAt: string
@@ -21,7 +21,7 @@ export interface CalendarBlock {
 }
 
 export interface CalendarView {
-  appointments: CalendarAppointment[]
+  interviews: CalendarInterview[]
   blockedSlots: CalendarBlock[]
 }
 

@@ -39,6 +39,7 @@ export function Header({ zoom, onZoomChange, anchorDate, onAnchorDateChange, onB
             it entirely — date navigation and the zoom control are what earn the space). */}
         <span className="hidden shrink-0 font-mono text-sm font-medium tracking-wide text-ink-900 sm:inline">
           The Ledger
+          <span className="hidden font-sans font-normal text-ink-500 lg:inline"> · Interview Scheduling</span>
         </span>
         <div className="flex shrink-0 items-center gap-0.5">
           {/* min-h/w-11 = 44px minimum touch target (CLAUDE.md §24) even though the visible

@@ -32,13 +32,13 @@ export function AiRibbon() {
       setErrorMessage(null)
       setHistory((prev) => [...prev, { role: 'assistant', content: data.reply }])
       for (const action of data.actions) {
-        if (action.type === 'appointment_created' && action.manageToken) {
+        if (action.type === 'interview_created' && action.manageToken) {
           setManageToken(action.manageToken)
         }
         if (
-          action.type === 'appointment_created' ||
-          action.type === 'appointment_updated' ||
-          action.type === 'appointment_cancelled'
+          action.type === 'interview_created' ||
+          action.type === 'interview_updated' ||
+          action.type === 'interview_cancelled'
         ) {
           queryClient.invalidateQueries({ queryKey: ['calendar'] })
         }
@@ -93,7 +93,7 @@ export function AiRibbon() {
                 <div className="flex flex-col gap-2 py-1">
                   <p className="text-sm text-ink-700">Ask in plain language — I'll check availability and handle the rest.</p>
                   <div className="flex flex-wrap gap-2">
-                    {['Book me tomorrow at 3pm', 'Is Friday morning free?'].map((suggestion) => (
+                    {['Book me a technical interview tomorrow at 3pm', 'Is Friday morning free for a screening call?'].map((suggestion) => (
                       <button
                         key={suggestion}
                         type="button"

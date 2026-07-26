@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createAdminBlockedSlot,
@@ -10,6 +9,7 @@ import {
   type RecurringBreakEntry,
   type WorkingHoursEntry,
 } from '@/features/admin/api/adminApi'
+import { AdminNav } from '@/features/admin/components/AdminNav'
 import { ApiError } from '@/lib/apiClient'
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -42,6 +42,9 @@ export function AdminSchedulePage() {
   const [timezone, setTimezone] = useState('America/New_York')
   const [workingHours, setWorkingHours] = useState<WorkingHoursEntry[]>(defaultWorkingHours())
   const [breaks, setBreaks] = useState<RecurringBreakEntry[]>([])
+  const [bufferMinutes, setBufferMinutes] = useState(0)
+  const [minNoticeMinutes, setMinNoticeMinutes] = useState(0)
+  const [maxBookingWindowDays, setMaxBookingWindowDays] = useState(60)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
 
@@ -50,11 +53,15 @@ export function AdminSchedulePage() {
       setTimezone(scheduleQuery.data.schedule.timezone)
       setWorkingHours(scheduleQuery.data.schedule.workingHours)
       setBreaks(scheduleQuery.data.schedule.breaks)
+      setBufferMinutes(scheduleQuery.data.schedule.bufferMinutes)
+      setMinNoticeMinutes(scheduleQuery.data.schedule.minNoticeMinutes)
+      setMaxBookingWindowDays(scheduleQuery.data.schedule.maxBookingWindowDays)
     }
   }, [scheduleQuery.data])
 
   const saveMutation = useMutation({
-    mutationFn: () => saveAdminSchedule({ timezone, workingHours, breaks }),
+    mutationFn: () =>
+      saveAdminSchedule({ timezone, workingHours, breaks, bufferMinutes, minNoticeMinutes, maxBookingWindowDays }),
     onSuccess: () => {
       setSaveError(null)
       setSaved(true)
@@ -115,18 +122,12 @@ export function AdminSchedulePage() {
   }
 
   return (
-    <div className="min-h-dvh bg-paper-50">
-      <header className="flex h-14 items-center gap-4 border-b border-hairline px-4 sm:px-6">
-        <span className="font-mono text-sm font-medium tracking-wide text-ink-900">The Ledger — Admin</span>
-        <nav className="flex items-center gap-3 text-sm text-ink-700">
-          <Link to="/admin" className="hover:text-ink-900">
-            Calendar
-          </Link>
-          <span className="font-medium text-ink-900">Schedule</span>
-        </nav>
-      </header>
+    <div className="min-h-dvh bg-paper-100">
+      <AdminNav />
 
       <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
+        <h1 className="text-xl font-medium text-ink-900">Schedule settings</h1>
+        <p className="mt-1 mb-6 text-sm text-ink-700">Working hours, breaks, booking rules, and blocked time.</p>
         <section>
           <h1 className="text-lg font-medium text-ink-900">Working hours</h1>
           <label className="mt-3 flex flex-col gap-1 text-sm text-ink-700">
@@ -219,6 +220,45 @@ export function AdminSchedulePage() {
             >
               + Add break
             </button>
+          </div>
+        </section>
+
+        <section className="mt-8">
+          <h2 className="text-md font-medium text-ink-900">Booking rules</h2>
+          <p className="mt-1 text-sm text-ink-700">Applied by the availability engine for every booking path — public, admin, and AI.</p>
+          <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <label className="flex flex-col gap-1 text-sm text-ink-700">
+              Buffer between interviews (minutes)
+              <input
+                type="number"
+                min={0}
+                step={5}
+                value={bufferMinutes}
+                onChange={(event) => setBufferMinutes(Number(event.target.value))}
+                className="rounded-md border border-hairline bg-paper-50 px-3 py-2 text-base text-ink-900 focus-visible:outline-none"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm text-ink-700">
+              Minimum notice (minutes)
+              <input
+                type="number"
+                min={0}
+                step={15}
+                value={minNoticeMinutes}
+                onChange={(event) => setMinNoticeMinutes(Number(event.target.value))}
+                className="rounded-md border border-hairline bg-paper-50 px-3 py-2 text-base text-ink-900 focus-visible:outline-none"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm text-ink-700">
+              Maximum booking window (days)
+              <input
+                type="number"
+                min={1}
+                value={maxBookingWindowDays}
+                onChange={(event) => setMaxBookingWindowDays(Number(event.target.value))}
+                className="rounded-md border border-hairline bg-paper-50 px-3 py-2 text-base text-ink-900 focus-visible:outline-none"
+              />
+            </label>
           </div>
         </section>
 

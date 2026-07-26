@@ -1,27 +1,52 @@
 import type { CSSProperties } from 'react'
 import { formatClockFromDate, heightForRange, offsetForDate } from '@/features/calendar/lib/layout'
 
-export type AppointmentTagStatus = 'pending' | 'confirmed' | 'cancelled'
-export type AppointmentTagSource = 'ai' | 'admin' | 'public'
+export type InterviewTagStatus = 'pending' | 'confirmed' | 'cancelled'
+export type InterviewTagSource = 'ai' | 'admin' | 'public'
+export type InterviewTagType =
+  | 'hr_screening'
+  | 'technical'
+  | 'coding'
+  | 'system_design'
+  | 'behavioral'
+  | 'managerial'
+  | 'final'
+  | 'panel'
+  | 'custom'
 
-const SOURCE_LABEL: Record<AppointmentTagSource, string> = {
+const SOURCE_LABEL: Record<InterviewTagSource, string> = {
   ai: 'via AI',
   admin: 'via Admin',
   public: 'via Web',
 }
 
-interface AppointmentTagProps {
+/** Short labels — these sit on a compact calendar tag, not a full sentence. */
+const INTERVIEW_TYPE_LABEL: Record<InterviewTagType, string> = {
+  hr_screening: 'HR Screening',
+  technical: 'Technical',
+  coding: 'Coding',
+  system_design: 'System Design',
+  behavioral: 'Behavioral',
+  managerial: 'Managerial',
+  final: 'Final',
+  panel: 'Panel',
+  custom: 'Interview',
+}
+
+interface InterviewTagProps {
   startAt: Date
   endAt: Date
-  status: AppointmentTagStatus
-  /** Only present in an authenticated admin context (Phase 9) — the public view never
-   * receives name/email/purpose, so this renders a generic "Booked" label without it. */
+  status: InterviewTagStatus
+  /** Only present in an authenticated admin context — the public view never receives
+   * candidate/interview detail, so this renders a generic "Interview" label without it. */
   title?: string
   attendee?: string
-  source?: AppointmentTagSource
+  interviewType?: InterviewTagType
+  round?: number
+  source?: InterviewTagSource
   /** Week view renders a narrower column and drops the attendee line. */
   compact?: boolean
-  /** Briefly true right after a real-time update affecting this appointment (CLAUDE.md §21). */
+  /** Briefly true right after a real-time update affecting this interview. */
   highlighted?: boolean
   /** Admin-only: opens the edit panel. Undefined (the public view's default) renders a
    * non-interactive tag — the public canvas is read-only except for tapping empty slots. */
@@ -29,34 +54,38 @@ interface AppointmentTagProps {
 }
 
 /**
- * The appointment "tag" — mono time range, title, truncated attendee, a
- * source indicator, and a status left-edge bar (CLAUDE.md §8). Positioned
- * absolutely within a relative hour-rail ancestor.
+ * The interview "tag" — mono time range, title, interview type/round, truncated
+ * candidate name, a source indicator, and a status left-edge bar. Positioned absolutely
+ * within a relative hour-rail ancestor.
  */
-export function AppointmentTag({
+export function InterviewTag({
   startAt,
   endAt,
   status,
   title,
   attendee,
+  interviewType,
+  round,
   source,
   compact = false,
   highlighted = false,
   onClick,
-}: AppointmentTagProps) {
+}: InterviewTagProps) {
   const cancelled = status === 'cancelled'
   const startLabel = formatClockFromDate(startAt)
   const endLabel = formatClockFromDate(endAt)
-  const displayTitle = title ?? 'Booked'
+  const displayTitle = title ?? 'Interview'
+  const typeLabel = interviewType ? INTERVIEW_TYPE_LABEL[interviewType] : undefined
 
   const style: CSSProperties = {
     top: offsetForDate(startAt),
-    // 44px minimum (CLAUDE.md §24) when interactive (admin); the public view's read-only
-    // tags don't need a touch-target minimum, so they can stay slightly more compact.
+    // 44px minimum when interactive (admin); the public view's read-only tags don't need a
+    // touch-target minimum, so they can stay slightly more compact.
     height: Math.max(heightForRange(startAt, endAt), onClick ? 44 : 40),
   }
 
-  const metaLine = [attendee, source ? SOURCE_LABEL[source] : undefined].filter(Boolean).join(' · ')
+  const typeAndRound = typeLabel ? `${typeLabel}${round && round > 1 ? ` · Round ${round}` : ''}` : undefined
+  const metaLine = [attendee, typeAndRound, source ? SOURCE_LABEL[source] : undefined].filter(Boolean).join(' · ')
 
   return (
     <div
@@ -82,7 +111,7 @@ export function AppointmentTag({
         'absolute overflow-hidden rounded-md border-l-[3px] bg-paper-50 px-2.5 py-1.5 shadow-tag ' +
         (compact ? 'inset-x-1' : 'left-2 right-2 sm:right-auto sm:w-[min(60%,26rem)]') +
         ' ' +
-        (cancelled ? 'border-ink-300' : 'border-ink-900') +
+        (cancelled ? 'border-ink-300' : 'border-amber-600') +
         (highlighted ? ' pulse-highlight' : '') +
         (onClick ? ' cursor-pointer' : '')
       }

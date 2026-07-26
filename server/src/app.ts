@@ -6,11 +6,13 @@ import { env } from './config/env.js'
 import { healthRouter } from './routes/health.route.js'
 import { calendarRouter } from './routes/calendar.route.js'
 import { availabilityRouter } from './routes/availability.route.js'
-import { appointmentsRouter } from './routes/appointments.route.js'
+import { interviewsRouter } from './routes/interviews.route.js'
 import { adminAuthRouter } from './routes/admin/adminAuth.route.js'
-import { adminAppointmentsRouter } from './routes/admin/adminAppointments.route.js'
+import { adminInterviewsRouter } from './routes/admin/adminInterviews.route.js'
 import { adminScheduleRouter } from './routes/admin/adminSchedule.route.js'
 import { adminBlockedSlotsRouter } from './routes/admin/adminBlockedSlots.route.js'
+import { adminCandidatesRouter } from './routes/admin/adminCandidates.route.js'
+import { adminDashboardRouter } from './routes/admin/adminDashboard.route.js'
 import { aiRouter } from './routes/ai.route.js'
 import { adminAiRouter } from './routes/admin/adminAi.route.js'
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js'
@@ -48,11 +50,13 @@ export function createApp() {
   app.use('/api/v1/health', healthRouter)
   app.use('/api/v1/calendar', calendarRouter)
   app.use('/api/v1/availability', availabilityRouter)
-  app.use('/api/v1/appointments', appointmentsRouter)
+  app.use('/api/v1/interviews', interviewsRouter)
   app.use('/api/v1/admin/auth', adminAuthRouter)
-  app.use('/api/v1/admin/appointments', adminAppointmentsRouter)
+  app.use('/api/v1/admin/interviews', adminInterviewsRouter)
   app.use('/api/v1/admin/schedule', adminScheduleRouter)
   app.use('/api/v1/admin/blocked-slots', adminBlockedSlotsRouter)
+  app.use('/api/v1/admin/candidates', adminCandidatesRouter)
+  app.use('/api/v1/admin/dashboard', adminDashboardRouter)
   app.use('/api/v1/ai', aiRouter)
   app.use('/api/v1/admin/ai', adminAiRouter)
 

@@ -10,7 +10,8 @@
     "typecheck": "tsc -b --noEmit",
     "lint": "oxlint",
     "test": "tsx --test --test-concurrency=1 src/**/*.test.ts",
-    "admin:create": "tsx src/scripts/create-admin.ts"
+    "admin:create": "tsx src/scripts/create-admin.ts",
+    "migrate:interviews": "tsx src/scripts/migrate-appointments-to-interviews.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

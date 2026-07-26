@@ -31,7 +31,7 @@ export function formatClock(hour: number, minute: number): string {
   return `${displayHour}${displayMinute} ${period}`
 }
 
-/** Real-Date variants — used for actual appointment/blocked-slot data (as opposed to the
+/** Real-Date variants — used for actual interview/blocked-slot data (as opposed to the
  * fixed hour/minute numbers used for the rail's own hour labels). Positions are relative to
  * the LOCAL (browser) calendar day, matching how the day/week grid itself is laid out. */
 
@@ -48,7 +48,7 @@ export function formatClockFromDate(date: Date): string {
   return formatClock(date.getHours(), date.getMinutes())
 }
 
-/** Clips a [startAt, endAt) range to a single day's boundaries — needed because an appointment
+/** Clips a [startAt, endAt) range to a single day's boundaries — needed because an interview
  * or blocked range can span midnight while the Day/Week grid only ever shows one calendar day
  * at a time; without clipping, a multi-day block would render at the wrong offset. */
 export function clipRangeToDay(

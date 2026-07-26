@@ -1,18 +1,18 @@
 import { Router } from 'express'
 import rateLimit from 'express-rate-limit'
 import {
-  deleteAppointmentByManageToken,
-  getAppointmentByManageToken,
-  patchAppointmentByManageToken,
-  postAppointment,
-} from '../controllers/appointments.controller.js'
+  deleteInterviewByManageToken,
+  getInterviewByManageToken,
+  patchInterviewByManageToken,
+  postInterview,
+} from '../controllers/interviews.controller.js'
 
-export const appointmentsRouter = Router()
+export const interviewsRouter = Router()
 
 // Unauthenticated and reachable by anyone: without a limit, this endpoint can be used to
 // spam-fill availability or email-bomb an arbitrary victim's inbox with confirmation emails
 // (the notification service sends to whatever address the request supplies).
-const createAppointmentRateLimit = rateLimit({
+const createInterviewRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 20,
   standardHeaders: true,
@@ -28,7 +28,7 @@ const manageTokenRateLimit = rateLimit({
   legacyHeaders: false,
 })
 
-appointmentsRouter.post('/', createAppointmentRateLimit, postAppointment)
-appointmentsRouter.get('/manage/:token', manageTokenRateLimit, getAppointmentByManageToken)
-appointmentsRouter.patch('/manage/:token', manageTokenRateLimit, patchAppointmentByManageToken)
-appointmentsRouter.delete('/manage/:token', manageTokenRateLimit, deleteAppointmentByManageToken)
+interviewsRouter.post('/', createInterviewRateLimit, postInterview)
+interviewsRouter.get('/manage/:token', manageTokenRateLimit, getInterviewByManageToken)
+interviewsRouter.patch('/manage/:token', manageTokenRateLimit, patchInterviewByManageToken)
+interviewsRouter.delete('/manage/:token', manageTokenRateLimit, deleteInterviewByManageToken)

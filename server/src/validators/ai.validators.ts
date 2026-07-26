@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { timezoneSchema } from './appointment.validators.js'
+import { timezoneSchema } from './interview.validators.js'
 
 export const conversationTurnSchema = z.object({
   role: z.enum(['user', 'assistant']),
@@ -12,8 +12,8 @@ export const aiChatInputSchema = z.object({
 })
 
 /** The public/guest chat endpoint additionally accepts the caller's own manage token —
- * this is what scopes an "act on my appointment" tool to the one appointment it actually
- * belongs to (see ai/tools.ts's resolveGuestAppointmentOrThrow), never a bare appointment ID
+ * this is what scopes an "act on my interview" tool to the one interview it actually
+ * belongs to (see ai/tools.ts's resolveGuestInterviewOrThrow), never a bare interview ID
  * supplied by the client or invented by the model. */
 export const guestAiChatInputSchema = aiChatInputSchema.extend({
   manageToken: z.string().min(1).optional(),

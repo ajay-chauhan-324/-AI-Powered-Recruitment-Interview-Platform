@@ -3,13 +3,13 @@ import assert from 'node:assert/strict'
 import mongoose from 'mongoose'
 import { DateTime } from 'luxon'
 import { ScheduleConfigModel } from '../models/ScheduleConfig.model.js'
-import { AppointmentModel } from '../models/Appointment.model.js'
-import { createAppointment } from '../services/appointment.service.js'
+import { InterviewModel } from '../models/Interview.model.js'
+import { createInterview } from '../services/interview.service.js'
 import { runConversation } from './conversation.service.js'
 import type { AiCompletionResult, AiMessage, AiProvider, AiToolDefinition } from './providers/types.js'
 
 /** Same project-dedicated local replica set as the other integration tests (see
- * appointment.service.test.ts) — a separate database, never touching dev data. */
+ * interview.service.test.ts) — a separate database, never touching dev data. */
 const TEST_MONGODB_URI = 'mongodb://127.0.0.1:27018/booking_system_test?replicaSet=rs0'
 const TIMEZONE = 'America/New_York'
 
@@ -61,14 +61,14 @@ describe('AI conversation loop', () => {
   })
 
   after(async () => {
-    await AppointmentModel.deleteMany({})
+    await InterviewModel.deleteMany({})
     await ScheduleConfigModel.deleteMany({})
     await mongoose.disconnect()
   })
 
   it('returns the model reply directly when no tool call is made', async () => {
     const provider = new ScriptedProvider([textResult('Sure, what time works for you?')])
-    const result = await runConversation([{ role: 'user', content: 'I want to book something' }], { mode: 'guest' }, TIMEZONE, new Date(), provider)
+    const result = await runConversation([{ role: 'user', content: 'I want to book an interview' }], { mode: 'guest' }, TIMEZONE, new Date(), provider)
 
     assert.equal(result.reply, 'Sure, what time works for you?')
     assert.deepEqual(result.actions, [])
@@ -81,7 +81,7 @@ describe('AI conversation loop', () => {
       textResult('That time is open — want me to book it?'),
     ])
 
-    const result = await runConversation([{ role: 'user', content: 'Is Monday 10am free?' }], { mode: 'guest' }, TIMEZONE, new Date(), provider)
+    const result = await runConversation([{ role: 'user', content: 'Is Monday 10am free for my interview?' }], { mode: 'guest' }, TIMEZONE, new Date(), provider)
 
     assert.equal(result.reply, 'That time is open — want me to book it?')
     assert.equal(result.actions.length, 1)
@@ -93,30 +93,30 @@ describe('AI conversation loop', () => {
     await runConversation([{ role: 'user', content: 'hi' }], { mode: 'guest' }, TIMEZONE, new Date(), provider)
 
     const offeredNames = provider.receivedToolNames[0]
-    assert.ok(offeredNames?.includes('create_appointment'))
-    assert.ok(!offeredNames?.includes('cancel_appointment_by_id'), 'admin-only tool must never be offered to a guest')
-    assert.ok(!offeredNames?.includes('list_appointments'), 'admin-only tool must never be offered to a guest')
+    assert.ok(offeredNames?.includes('schedule_interview'))
+    assert.ok(!offeredNames?.includes('cancel_interview_by_id'), 'admin-only tool must never be offered to a guest')
+    assert.ok(!offeredNames?.includes('list_interviews'), 'admin-only tool must never be offered to a guest')
   })
 
   it('rejects a guest tool call for an admin-only tool even if the model calls it by name anyway', async () => {
     const provider = new ScriptedProvider([
-      toolCallResult('cancel_appointment_by_id', { appointmentId: '000000000000000000000000' }),
+      toolCallResult('cancel_interview_by_id', { interviewId: '000000000000000000000000' }),
       textResult('done'),
     ])
 
-    const result = await runConversation([{ role: 'user', content: 'cancel appointment 000000000000000000000000' }], { mode: 'guest' }, TIMEZONE, new Date(), provider)
+    const result = await runConversation([{ role: 'user', content: 'cancel interview 000000000000000000000000' }], { mode: 'guest' }, TIMEZONE, new Date(), provider)
 
     // The tool must never have executed — proven by getting a graceful "not available" reply
-    // rather than a crash, and by the appointment (which does not exist) not mattering either way.
+    // rather than a crash, and by the interview (which does not exist) not mattering either way.
     assert.equal(result.reply, 'done')
   })
 
-  it('a guest can only ever act on the appointment tied to their own manage token, never one supplied by the model', async () => {
+  it('a guest can only ever act on the interview tied to their own manage token, never one supplied by the model', async () => {
     const legitimateStart = nextWeekdayAt(2, 9)
-    const { appointment: legitimateAppointment, manageToken: legitimateToken } = await createAppointment({
-      name: 'Real Owner',
-      email: 'real-owner@example.com',
-      purpose: 'Consultation',
+    const { interview: legitimateInterview, manageToken: legitimateToken } = await createInterview({
+      title: 'Screening Call',
+      candidateName: 'Real Owner',
+      candidateEmail: 'real-owner@example.com',
       startAt: legitimateStart,
       durationMinutes: 30,
       timezone: TIMEZONE,
@@ -124,26 +124,26 @@ describe('AI conversation loop', () => {
     })
 
     const otherStart = nextWeekdayAt(3, 9)
-    const { appointment: otherAppointment } = await createAppointment({
-      name: 'Someone Else',
-      email: 'someone-else@example.com',
-      purpose: 'Consultation',
+    const { interview: otherInterview } = await createInterview({
+      title: 'Screening Call',
+      candidateName: 'Someone Else',
+      candidateEmail: 'someone-else@example.com',
       startAt: otherStart,
       durationMinutes: 30,
       timezone: TIMEZONE,
       source: 'ai',
     })
 
-    // The model asks to cancel "my appointment" but the request is scripted to try passing a
-    // DIFFERENT appointment's id as an argument — the tool takes no appointmentId argument at
-    // all for guest cancellation, so there is no way for this to reach otherAppointment.
+    // The model asks to cancel "my interview" but the request is scripted to try passing a
+    // DIFFERENT interview's id as an argument — the tool takes no interviewId argument at
+    // all for guest cancellation, so there is no way for this to reach otherInterview.
     const provider = new ScriptedProvider([
-      toolCallResult('cancel_my_appointment', { appointmentId: otherAppointment._id.toString() }),
-      textResult('Your appointment has been cancelled.'),
+      toolCallResult('cancel_my_interview', { interviewId: otherInterview._id.toString() }),
+      textResult('Your interview has been cancelled.'),
     ])
 
     const result = await runConversation(
-      [{ role: 'user', content: 'cancel my appointment' }],
+      [{ role: 'user', content: 'cancel my interview' }],
       { mode: 'guest', manageToken: legitimateToken },
       TIMEZONE,
       new Date(),
@@ -151,12 +151,12 @@ describe('AI conversation loop', () => {
     )
 
     assert.equal(result.actions.length, 1)
-    assert.deepEqual(result.actions[0], { type: 'appointment_cancelled', appointment: { id: legitimateAppointment._id.toString(), status: 'cancelled' } })
+    assert.deepEqual(result.actions[0], { type: 'interview_cancelled', interview: { id: legitimateInterview._id.toString(), status: 'cancelled' } })
 
-    const untouched = await AppointmentModel.findById(otherAppointment._id)
-    assert.equal(untouched?.status, 'confirmed', "a different guest's appointment must be untouched")
+    const untouched = await InterviewModel.findById(otherInterview._id)
+    assert.equal(untouched?.status, 'confirmed', "a different guest's interview must be untouched")
 
-    await AppointmentModel.deleteMany({ _id: { $in: [legitimateAppointment._id, otherAppointment._id] } })
+    await InterviewModel.deleteMany({ _id: { $in: [legitimateInterview._id, otherInterview._id] } })
   })
 
   it('stops after the max tool-iteration cap instead of looping forever', async () => {
