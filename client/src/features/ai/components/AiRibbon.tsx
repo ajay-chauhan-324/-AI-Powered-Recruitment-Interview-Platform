@@ -138,11 +138,15 @@ export function AiRibbon() {
         </div>
       )}
       <form onSubmit={handleSubmit} className="flex items-center gap-2 px-4 py-3 sm:px-5">
-        <span aria-hidden="true" className="shrink-0 text-amber-600">
-          ⌁
+        <span
+          aria-hidden="true"
+          className="flex shrink-0 items-center gap-1 rounded-pill border border-amber-600/40 bg-amber-100 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-amber-600"
+        >
+          <span aria-hidden="true">⌁</span>
+          AI
         </span>
         <label htmlFor={inputId} className="sr-only">
-          Ask to book, move, or check a time
+          Ask the AI assistant to book, move, or check an interview time
         </label>
         <input
           id={inputId}
@@ -152,7 +156,7 @@ export function AiRibbon() {
           onFocus={() => setExpanded(true)}
           aria-expanded={expanded}
           aria-controls={panelId}
-          placeholder="Ask to book, move, or check a time…"
+          placeholder="Ask to book an interview, move one, or check a time…"
           className="w-full bg-transparent text-base text-ink-900 placeholder:text-ink-500 focus:outline-none"
         />
         <button

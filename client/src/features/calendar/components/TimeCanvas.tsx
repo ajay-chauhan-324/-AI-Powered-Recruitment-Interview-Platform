@@ -194,6 +194,7 @@ function DayFoundation({
             ⌁
           </span>
           <p className="text-sm text-ink-700">No interviews scheduled for this day.</p>
+          <p className="text-xs text-ink-500">Tap an open time below to book an interview.</p>
         </div>
       )}
       <div className="flex">
@@ -212,6 +213,16 @@ function DayFoundation({
           aria-label="Tap a time to book an interview"
         >
           <HourGridLines />
+          {/* Elapsed time reads as unavailable (can't book the past) without relying on
+              color alone elsewhere — the muted fill plus the "Now" line right at its edge
+              together make the boundary unambiguous. */}
+          {isSameAsToday && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 top-0 bg-ink-900/[0.035]"
+              style={{ height: offsetForDate(now) }}
+            />
+          )}
           {blockedSlots.map((block) => {
             const clipped = clipRangeToDay(new Date(block.startAt), new Date(block.endAt), range.start, range.end)
             if (!clipped) return null
