@@ -35,3 +35,6 @@ npm-debug.log*
 
 # Local dev MongoDB data (project-dedicated replica-set instance, see README)
 .mongo-data/
+
+# Claude Code session-internal state, not part of the project
+.claude/

@@ -11,6 +11,8 @@ import { adminAuthRouter } from './routes/admin/adminAuth.route.js'
 import { adminAppointmentsRouter } from './routes/admin/adminAppointments.route.js'
 import { adminScheduleRouter } from './routes/admin/adminSchedule.route.js'
 import { adminBlockedSlotsRouter } from './routes/admin/adminBlockedSlots.route.js'
+import { aiRouter } from './routes/ai.route.js'
+import { adminAiRouter } from './routes/admin/adminAi.route.js'
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js'
 
 /** Minimal, dependency-free request log: method, path, status, and duration. Enough for
@@ -51,6 +53,8 @@ export function createApp() {
   app.use('/api/v1/admin/appointments', adminAppointmentsRouter)
   app.use('/api/v1/admin/schedule', adminScheduleRouter)
   app.use('/api/v1/admin/blocked-slots', adminBlockedSlotsRouter)
+  app.use('/api/v1/ai', aiRouter)
+  app.use('/api/v1/admin/ai', adminAiRouter)
 
   app.use(notFoundHandler)
   app.use(errorHandler)

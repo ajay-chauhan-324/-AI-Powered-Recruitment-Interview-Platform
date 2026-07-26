@@ -33,6 +33,17 @@ const envSchema = z.object({
   SMTP_USER: z.string().min(1).optional(),
   SMTP_PASS: z.string().min(1).optional(),
   SMTP_FROM: z.string().min(1).optional(),
+
+  // Phase 7 (AI conversation layer). Selects which provider adapter services/ai/providers
+  // dispatches to — the booking/availability services never know this exists (CLAUDE.md
+  // §16). Optional/undefined key means the AI endpoints respond 503 rather than the whole
+  // server failing to boot, the same credential-free-default pattern used for SMTP.
+  AI_PROVIDER: z.enum(['openrouter']).default('openrouter'),
+  OPENROUTER_API_KEY: z.string().min(1).optional(),
+  // A free-tier model with tool-calling support, verified against OpenRouter's live model
+  // catalog at implementation time. Configurable because free-tier model availability
+  // shifts over time — swap this without a code change if it's ever deprecated.
+  OPENROUTER_MODEL: z.string().min(1).default('nvidia/nemotron-3-ultra-550b-a55b:free'),
 })
 
 const parsed = envSchema.safeParse(process.env)
