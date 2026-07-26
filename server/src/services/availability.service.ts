@@ -2,6 +2,7 @@ import { DateTime } from 'luxon'
 import { ScheduleConfigModel } from '../models/ScheduleConfig.model.js'
 import { BlockedSlotModel } from '../models/BlockedSlot.model.js'
 import { AppointmentModel } from '../models/Appointment.model.js'
+import { BookingValidationError } from './booking.errors.js'
 
 /**
  * The single centralized availability engine (CLAUDE.md §12). Every caller —
@@ -101,7 +102,7 @@ export async function findAvailableSlots(query: AvailabilityQuery, now: Date = n
   const { rangeStart, rangeEnd, durationMinutes, excludeAppointmentId } = query
   if (rangeEnd <= rangeStart || durationMinutes <= 0) return []
   if (rangeEnd.getTime() - rangeStart.getTime() > MAX_QUERY_RANGE_DAYS * 86_400_000) {
-    throw new Error(`Availability queries are limited to ${MAX_QUERY_RANGE_DAYS} days at a time.`)
+    throw new BookingValidationError(`Availability queries are limited to ${MAX_QUERY_RANGE_DAYS} days at a time.`)
   }
 
   const config = await getScheduleConfig()

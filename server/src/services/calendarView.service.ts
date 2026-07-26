@@ -1,5 +1,6 @@
 import { AppointmentModel } from '../models/Appointment.model.js'
 import { BlockedSlotModel } from '../models/BlockedSlot.model.js'
+import { BookingValidationError } from './booking.errors.js'
 
 const MAX_QUERY_RANGE_DAYS = 62
 
@@ -33,7 +34,7 @@ export interface PublicCalendarView {
 
 export async function getPublicCalendarView(from: Date, to: Date): Promise<PublicCalendarView> {
   if (to.getTime() - from.getTime() > MAX_QUERY_RANGE_DAYS * 86_400_000) {
-    throw new Error(`Calendar queries are limited to ${MAX_QUERY_RANGE_DAYS} days at a time.`)
+    throw new BookingValidationError(`Calendar queries are limited to ${MAX_QUERY_RANGE_DAYS} days at a time.`)
   }
 
   const [appointments, blockedSlots] = await Promise.all([
