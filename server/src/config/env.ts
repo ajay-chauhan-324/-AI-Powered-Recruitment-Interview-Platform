@@ -17,6 +17,14 @@ const envSchema = z.object({
   // Signs the admin session cookie (Phase 9). Generate with:
   // node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
+
+  // Optional (Phase 10). Without these, notifications log to the console instead of
+  // sending real email — a deliberate credential-free default, not a missing feature.
+  SMTP_HOST: z.string().min(1).optional(),
+  SMTP_PORT: z.coerce.number().int().positive().optional(),
+  SMTP_USER: z.string().min(1).optional(),
+  SMTP_PASS: z.string().min(1).optional(),
+  SMTP_FROM: z.string().min(1).optional(),
 })
 
 const parsed = envSchema.safeParse(process.env)

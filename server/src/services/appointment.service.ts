@@ -6,6 +6,34 @@ import { createAppointmentInputSchema, type CreateAppointmentInput } from '../va
 import { findNearestAlternatives, isSlotAvailable } from './availability.service.js'
 import { AppointmentNotFoundError, BookingValidationError, SlotConflictError } from './booking.errors.js'
 import { appointmentEvents } from '../events/appointmentEvents.js'
+import { env } from '../config/env.js'
+import {
+  sendCancellationEmail,
+  sendConfirmationEmail,
+  sendRescheduleEmail,
+  type AppointmentNotificationContext,
+} from './notifications/notification.service.js'
+
+function toNotificationContext(appointment: AppointmentDocument): AppointmentNotificationContext {
+  return {
+    name: appointment.name,
+    email: appointment.email,
+    purpose: appointment.purpose,
+    startAt: appointment.startAt,
+    endAt: appointment.endAt,
+    timezone: appointment.timezone,
+  }
+}
+
+/** The booking itself has already succeeded by the time any of these run — a notification
+ * failure (e.g. SMTP down) must never surface as a booking failure to the caller. */
+async function notifySafely(send: () => Promise<void>): Promise<void> {
+  try {
+    await send()
+  } catch (error) {
+    console.error('[notification] failed to send:', error)
+  }
+}
 
 function toEventPayload(appointment: AppointmentDocument) {
   return {
@@ -128,6 +156,13 @@ export async function createAppointment(rawInput: CreateAppointmentInput): Promi
 
   appointmentEvents.emitAppointmentEvent('appointment.created', toEventPayload(created))
 
+  void notifySafely(() =>
+    sendConfirmationEmail({
+      ...toNotificationContext(created!),
+      manageUrl: `${env.CLIENT_ORIGIN}/manage/${manageToken}`,
+    }),
+  )
+
   return { appointment: created, manageToken }
 }
 
@@ -203,6 +238,8 @@ export async function rescheduleAppointment(
 
   appointmentEvents.emitAppointmentEvent('appointment.updated', toEventPayload(updated))
 
+  void notifySafely(() => sendRescheduleEmail(toNotificationContext(updated!)))
+
   return updated
 }
 
@@ -218,6 +255,8 @@ export async function cancelAppointment(appointmentId: string): Promise<Appointm
   await existing.save()
 
   appointmentEvents.emitAppointmentEvent('appointment.cancelled', toEventPayload(existing))
+
+  void notifySafely(() => sendCancellationEmail(toNotificationContext(existing)))
 
   return existing
 }
