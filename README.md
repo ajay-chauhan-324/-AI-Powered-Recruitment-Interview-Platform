@@ -4,11 +4,13 @@ AI-powered smart appointment booking system. The full engineering and design spe
 
 ## Status
 
-**Phases 1-6 and 8** complete: client/server scaffolding and design tokens, MongoDB models and validation, the timezone-aware availability engine, a transaction-safe booking engine (create/reschedule/cancel) with automated tests covering a real concurrent double-booking race, the Time Canvas wired to real data with real-time sync over Socket.IO, and a working public guest booking experience — tap an available time on Day view, fill in name/email/purpose, and book; a secure manage link (`/manage/:token`) lets a guest view, reschedule, or cancel afterward with no login.
+**Phases 1-6 and 8-9** complete: client/server scaffolding and design tokens, MongoDB models and validation, the timezone-aware availability engine, a transaction-safe booking engine (create/reschedule/cancel) with automated tests covering a real concurrent double-booking race, the Time Canvas wired to real data with real-time sync over Socket.IO, a working public guest booking experience (manage link at `/manage/:token`, no login), and an authenticated admin workspace (`/admin`) — full appointment detail and history, create/reschedule/resize/cancel, and working-hours/breaks/blocked-time configuration (`/admin/schedule`).
 
-**Phase 7 (AI conversation layer) is on hold**, blocked on an Anthropic API key (not something this assistant can generate) — see `server/.env.example`'s `ANTHROPIC_API_KEY`. Until it's provided, the public booking path above (direct calendar interaction) stands in for the AI-driven entry point CLAUDE.md's flow describes; both are meant to converge on the same `AppointmentService`, so adding the AI layer later won't change this phase's work.
+**Phase 7 (AI conversation layer) is on hold**, blocked on an Anthropic API key (not something this assistant can generate) — see `server/.env.example`'s `ANTHROPIC_API_KEY`. Until it's provided, the public booking path (direct calendar interaction) stands in for the AI-driven entry point CLAUDE.md's flow describes; both are meant to converge on the same `AppointmentService`, so adding the AI layer later won't change this work.
 
-The calendar read endpoint and real-time events are intentionally public-safe (time/status only, no name/email/purpose) since there's no authentication yet — Phase 9 adds an authenticated admin view with full appointment detail and history. No admin functionality exists yet — that's the next phase (see CLAUDE.md §28).
+The public calendar read endpoint and real-time events stay public-safe (time/status only, no name/email/purpose) — only the authenticated `/admin/appointments` route returns full detail. Notifications (actual email delivery of the confirmation/manage link) are the next phase — for now the manage link is returned directly in the booking API response (see CLAUDE.md §28).
+
+Reschedule/duration changes in the admin workspace happen through an edit panel's form fields (start time + duration), not a pointer-drag interaction — this gives full keyboard accessibility (CLAUDE.md §24) from the start rather than building a bespoke drag/resize handle and a separate keyboard path for it. Direct-manipulation drag could be added later as a progressive enhancement.
 
 Run the server's test suite with `cd server && npm test` (requires the local MongoDB replica set — see "Local MongoDB" below).
 
@@ -42,6 +44,17 @@ npm run dev      # http://localhost:5173
 ```
 
 The server's `CLIENT_ORIGIN` env var must match the client's dev URL for CORS to work. The client's Vite dev server proxies `/api` to `http://localhost:4000` (see `client/vite.config.ts`), so the client always calls same-origin `/api/v1/...` paths regardless of environment.
+
+## Admin account
+
+There's no self-service admin signup. Create the first (or an additional) admin account with:
+
+```
+cd server
+npm run admin:create -- you@example.com
+```
+
+This prints a randomly generated password once — store it securely; there is no password-reset flow yet. Sign in at `/admin/login`.
 
 ## Local MongoDB
 

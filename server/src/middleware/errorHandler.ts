@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express'
 import { ZodError } from 'zod'
 import { env } from '../config/env.js'
-import { AppointmentNotFoundError, BookingValidationError, SlotConflictError } from '../services/booking.errors.js'
+import { BookingValidationError, NotFoundError, SlotConflictError } from '../services/booking.errors.js'
 import { ScheduleNotConfiguredError } from '../services/availability.service.js'
 
 export class AppError extends Error {
@@ -47,7 +47,7 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     return
   }
 
-  if (err instanceof AppointmentNotFoundError) {
+  if (err instanceof NotFoundError) {
     res.status(404).json({ error: { code: 'NOT_FOUND', message: err.message } })
     return
   }

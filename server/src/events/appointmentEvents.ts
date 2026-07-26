@@ -23,9 +23,20 @@ export interface AppointmentEventPayload {
   status: 'pending' | 'confirmed' | 'cancelled'
 }
 
+/** Fired when working hours, breaks, or blocked time change (Phase 9 admin config) — no
+ * specific appointment is involved, so there's nothing to say beyond "something changed,
+ * re-check availability." */
+export interface AvailabilityChangedPayload {
+  reason: 'schedule' | 'blocked_slot'
+}
+
 class AppointmentEventEmitter extends EventEmitter {
   emitAppointmentEvent(name: AppointmentEventName, payload: AppointmentEventPayload): void {
     this.emit(name, payload)
+  }
+
+  emitAvailabilityChanged(payload: AvailabilityChangedPayload): void {
+    this.emit('availability.changed', payload)
   }
 }
 

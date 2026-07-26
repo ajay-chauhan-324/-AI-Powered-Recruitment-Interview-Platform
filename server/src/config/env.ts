@@ -14,6 +14,9 @@ const envSchema = z.object({
   // default) — conflict-safe booking (CLAUDE.md §13) relies on multi-document
   // transactions, which a standalone mongod does not support.
   MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
+  // Signs the admin session cookie (Phase 9). Generate with:
+  // node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
 })
 
 const parsed = envSchema.safeParse(process.env)

@@ -131,12 +131,22 @@ export async function createAppointment(rawInput: CreateAppointmentInput): Promi
   return { appointment: created, manageToken }
 }
 
-export async function rescheduleAppointment(appointmentId: string, newStart: Date): Promise<AppointmentDocument> {
+/** newDurationMinutes lets admins change an appointment's length (CLAUDE.md §20 "Resize
+ * duration") at the same time as moving it; omit it to keep the current duration — this is
+ * the same reschedule path guest users hit via their manage link, just with one more field. */
+export async function rescheduleAppointment(
+  appointmentId: string,
+  newStart: Date,
+  newDurationMinutes?: number,
+): Promise<AppointmentDocument> {
   if (!isValidObjectId(appointmentId)) throw new AppointmentNotFoundError()
 
   const now = new Date()
   if (newStart.getTime() <= now.getTime()) {
     throw new BookingValidationError('Cannot reschedule to a time in the past.')
+  }
+  if (newDurationMinutes !== undefined && newDurationMinutes <= 0) {
+    throw new BookingValidationError('Duration must be positive.')
   }
 
   const session = await mongoose.startSession()
@@ -153,9 +163,9 @@ export async function rescheduleAppointment(appointmentId: string, newStart: Dat
           if (!existing || existing.status === 'cancelled') {
             throw new AppointmentNotFoundError()
           }
-          durationMinutes = existing.durationMinutes
+          durationMinutes = newDurationMinutes ?? existing.durationMinutes
 
-          const newEnd = new Date(newStart.getTime() + existing.durationMinutes * 60_000)
+          const newEnd = new Date(newStart.getTime() + durationMinutes * 60_000)
 
           // Excludes the appointment's own current (pre-move) row — otherwise a reschedule that
           // overlaps its own existing slot (e.g. moving 9:00-9:30 to 9:15-9:45) would look like a
@@ -173,6 +183,7 @@ export async function rescheduleAppointment(appointmentId: string, newStart: Dat
 
           existing.startAt = newStart
           existing.endAt = newEnd
+          existing.durationMinutes = durationMinutes
           await existing.save({ session })
           updated = existing
         }),
@@ -218,4 +229,10 @@ export async function getAppointmentByToken(rawToken: string): Promise<Appointme
 export async function getAppointmentById(appointmentId: string): Promise<AppointmentDocument | null> {
   if (!isValidObjectId(appointmentId)) return null
   return AppointmentModel.findById(appointmentId)
+}
+
+/** Admin-only: full detail, including cancelled appointments (CLAUDE.md §8 "preserve
+ * historical visibility") — never used by the anonymous public calendar view (Phase 5). */
+export async function listAppointmentsInRange(from: Date, to: Date): Promise<AppointmentDocument[]> {
+  return AppointmentModel.find({ startAt: { $lt: to }, endAt: { $gt: from } }).sort({ startAt: 1 })
 }

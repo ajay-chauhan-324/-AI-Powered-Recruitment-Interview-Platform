@@ -1,7 +1,11 @@
 import type { Server as HttpServer } from 'node:http'
 import { Server as SocketIOServer } from 'socket.io'
 import { env } from '../config/env.js'
-import { appointmentEvents, type AppointmentEventPayload } from '../events/appointmentEvents.js'
+import {
+  appointmentEvents,
+  type AppointmentEventPayload,
+  type AvailabilityChangedPayload,
+} from '../events/appointmentEvents.js'
 
 /**
  * Real-time sync (CLAUDE.md §21). Broadcasts to every connected client on
@@ -26,13 +30,14 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
 
   const calendarNamespace = io.of('/calendar')
 
-  function broadcast(eventName: string, payload: AppointmentEventPayload) {
+  function broadcast(eventName: string, payload: AppointmentEventPayload | AvailabilityChangedPayload) {
     calendarNamespace.emit(eventName, payload)
   }
 
   appointmentEvents.on('appointment.created', (payload: AppointmentEventPayload) => broadcast('appointment.created', payload))
   appointmentEvents.on('appointment.updated', (payload: AppointmentEventPayload) => broadcast('appointment.updated', payload))
   appointmentEvents.on('appointment.cancelled', (payload: AppointmentEventPayload) => broadcast('appointment.cancelled', payload))
+  appointmentEvents.on('availability.changed', (payload: AvailabilityChangedPayload) => broadcast('availability.changed', payload))
 
   return io
 }

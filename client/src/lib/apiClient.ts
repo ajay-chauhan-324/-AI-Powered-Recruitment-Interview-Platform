@@ -43,25 +43,30 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
 export async function apiGet<T>(path: string, params?: Record<string, string>): Promise<T> {
   const query = params ? `?${new URLSearchParams(params).toString()}` : ''
-  const response = await fetch(`${API_BASE}${path}${query}`)
+  const response = await fetch(`${API_BASE}${path}${query}`, { credentials: 'include' })
   return handleResponse<T>(response)
 }
 
-async function apiMutate<T>(method: 'POST' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
+async function apiMutate<T>(method: 'POST' | 'PATCH' | 'PUT' | 'DELETE', path: string, body?: unknown): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     method,
+    credentials: 'include',
     headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
   return handleResponse<T>(response)
 }
 
-export function apiPost<T>(path: string, body: unknown): Promise<T> {
+export function apiPost<T>(path: string, body?: unknown): Promise<T> {
   return apiMutate<T>('POST', path, body)
 }
 
 export function apiPatch<T>(path: string, body: unknown): Promise<T> {
   return apiMutate<T>('PATCH', path, body)
+}
+
+export function apiPut<T>(path: string, body: unknown): Promise<T> {
+  return apiMutate<T>('PUT', path, body)
 }
 
 export function apiDelete<T>(path: string): Promise<T> {

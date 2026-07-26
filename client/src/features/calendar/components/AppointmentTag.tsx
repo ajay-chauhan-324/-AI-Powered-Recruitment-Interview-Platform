@@ -23,6 +23,9 @@ interface AppointmentTagProps {
   compact?: boolean
   /** Briefly true right after a real-time update affecting this appointment (CLAUDE.md §21). */
   highlighted?: boolean
+  /** Admin-only: opens the edit panel. Undefined (the public view's default) renders a
+   * non-interactive tag — the public canvas is read-only except for tapping empty slots. */
+  onClick?: () => void
 }
 
 /**
@@ -39,6 +42,7 @@ export function AppointmentTag({
   source,
   compact = false,
   highlighted = false,
+  onClick,
 }: AppointmentTagProps) {
   const cancelled = status === 'cancelled'
   const startLabel = formatClockFromDate(startAt)
@@ -55,15 +59,30 @@ export function AppointmentTag({
   return (
     <div
       style={style}
-      role="group"
+      role={onClick ? 'button' : 'group'}
+      tabIndex={onClick ? 0 : undefined}
       aria-label={`${displayTitle}, ${startLabel} to ${endLabel}${cancelled ? ', cancelled' : ''}`}
-      onClick={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation()
+        onClick?.()
+      }}
+      onKeyDown={
+        onClick
+          ? (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                onClick()
+              }
+            }
+          : undefined
+      }
       className={
         'absolute overflow-hidden rounded-md border-l-[3px] bg-paper-50 px-2.5 py-1.5 shadow-tag ' +
         (compact ? 'inset-x-1' : 'left-2 right-2 sm:right-auto sm:w-[min(60%,26rem)]') +
         ' ' +
         (cancelled ? 'border-ink-300' : 'border-ink-900') +
-        (highlighted ? ' pulse-highlight' : '')
+        (highlighted ? ' pulse-highlight' : '') +
+        (onClick ? ' cursor-pointer' : '')
       }
     >
       <p className="font-mono text-xs tabular-nums text-ink-700">
