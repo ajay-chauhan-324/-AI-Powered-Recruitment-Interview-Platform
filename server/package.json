@@ -9,7 +9,7 @@
     "start": "node dist/server.js",
     "typecheck": "tsc -b --noEmit",
     "lint": "oxlint",
-    "test": "tsx --test src/**/*.test.ts",
+    "test": "tsx --test --test-concurrency=1 src/**/*.test.ts",
     "admin:create": "tsx src/scripts/create-admin.ts"
   },
   "dependencies": {
@@ -36,6 +36,7 @@
     "@types/node": "^24.13.2",
     "@types/nodemailer": "^8.0.1",
     "oxlint": "^1.71.0",
+    "socket.io-client": "^4.8.3",
     "tsx": "^4.23.1",
     "typescript": "~6.0.2"
   }
