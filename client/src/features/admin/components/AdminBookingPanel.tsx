@@ -122,7 +122,7 @@ export function AdminBookingPanel({ initialStart, onClose }: AdminBookingPanelPr
                     setAlternatives(null)
                     setError(null)
                   }}
-                  className="rounded-pill border border-amber-600 bg-amber-100 px-3 py-1 font-mono text-xs text-ink-900"
+                  className="flex min-h-11 items-center rounded-pill border border-amber-600 bg-amber-100 px-3 font-mono text-xs text-ink-900"
                 >
                   {formatClockFromDate(new Date(alt.start))}
                 </button>
@@ -134,7 +134,7 @@ export function AdminBookingPanel({ initialStart, onClose }: AdminBookingPanelPr
         <button
           type="submit"
           disabled={mutation.isPending}
-          className="mt-2 rounded-pill border border-amber-600 bg-amber-100 px-4 py-2 text-sm font-medium text-ink-900 hover:bg-amber-100/70 disabled:opacity-50"
+          className="mt-2 flex min-h-11 items-center justify-center rounded-pill border border-amber-600 bg-amber-100 px-4 text-sm font-medium text-ink-900 hover:bg-amber-100/70 disabled:opacity-50"
         >
           {mutation.isPending ? 'Booking…' : 'Create appointment'}
         </button>

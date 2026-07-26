@@ -372,7 +372,10 @@ function MonthFoundation({
                 (inCurrentMonth ? 'bg-paper-50' : 'bg-paper-50/50')
               }
             >
-              <span className={'font-mono text-xs tabular-nums ' + (inCurrentMonth ? 'text-ink-900' : 'text-ink-300')}>
+              {/* Adjacent-month days are de-emphasized via the muted background above, not
+                  via low-contrast text — the day number itself is real content and must
+                  stay legible (ink-300 on paper-50 is 2.03:1, well under WCAG AA). */}
+              <span className={'font-mono text-xs tabular-nums ' + (inCurrentMonth ? 'text-ink-900' : 'text-ink-700')}>
                 {date.getDate()}
               </span>
               {count > 0 && (

@@ -51,7 +51,9 @@ export function AppointmentTag({
 
   const style: CSSProperties = {
     top: offsetForDate(startAt),
-    height: Math.max(heightForRange(startAt, endAt), 40),
+    // 44px minimum (CLAUDE.md §24) when interactive (admin); the public view's read-only
+    // tags don't need a touch-target minimum, so they can stay slightly more compact.
+    height: Math.max(heightForRange(startAt, endAt), onClick ? 44 : 40),
   }
 
   const metaLine = [attendee, source ? SOURCE_LABEL[source] : undefined].filter(Boolean).join(' · ')

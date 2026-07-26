@@ -203,12 +203,20 @@ export function AdminSchedulePage() {
                   placeholder="Label"
                   className="w-28 rounded-md border border-hairline bg-paper-50 px-2 py-1 text-sm text-ink-900"
                 />
-                <button type="button" onClick={() => removeBreak(index)} className="text-sm text-ink-700 hover:text-ink-900">
+                <button
+                  type="button"
+                  onClick={() => removeBreak(index)}
+                  className="flex min-h-11 items-center px-1 text-sm text-ink-700 hover:text-ink-900"
+                >
                   Remove
                 </button>
               </div>
             ))}
-            <button type="button" onClick={addBreak} className="mt-1 self-start text-sm text-ink-700 hover:text-ink-900">
+            <button
+              type="button"
+              onClick={addBreak}
+              className="mt-1 flex min-h-11 items-center self-start px-1 text-sm text-ink-700 hover:text-ink-900"
+            >
               + Add break
             </button>
           </div>
@@ -226,7 +234,7 @@ export function AdminSchedulePage() {
             saveMutation.mutate()
           }}
           disabled={saveMutation.isPending}
-          className="mt-6 rounded-pill border border-amber-600 bg-amber-100 px-4 py-2 text-sm font-medium text-ink-900 hover:bg-amber-100/70 disabled:opacity-50"
+          className="mt-6 flex min-h-11 items-center rounded-pill border border-amber-600 bg-amber-100 px-4 text-sm font-medium text-ink-900 hover:bg-amber-100/70 disabled:opacity-50"
         >
           {saveMutation.isPending ? 'Saving…' : saved ? 'Saved' : 'Save schedule'}
         </button>
@@ -247,7 +255,7 @@ export function AdminSchedulePage() {
                 <button
                   type="button"
                   onClick={() => deleteBlockMutation.mutate(slot.id)}
-                  className="text-sm text-ink-700 hover:text-ink-900"
+                  className="flex min-h-11 items-center px-1 text-sm text-ink-700 hover:text-ink-900"
                 >
                   Remove
                 </button>
@@ -292,7 +300,7 @@ export function AdminSchedulePage() {
                 createBlockMutation.mutate()
               }}
               disabled={createBlockMutation.isPending || !blockLabel || !blockStart || !blockEnd}
-              className="rounded-pill border border-amber-600 bg-amber-100 px-3 py-1.5 text-sm font-medium text-ink-900 hover:bg-amber-100/70 disabled:opacity-50"
+              className="flex min-h-11 items-center rounded-pill border border-amber-600 bg-amber-100 px-3 text-sm font-medium text-ink-900 hover:bg-amber-100/70 disabled:opacity-50"
             >
               Add
             </button>

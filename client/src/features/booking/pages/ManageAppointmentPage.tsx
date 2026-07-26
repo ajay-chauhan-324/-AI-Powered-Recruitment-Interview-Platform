@@ -105,7 +105,7 @@ export function ManageAppointmentPage() {
               <button
                 type="button"
                 onClick={() => setShowReschedule(true)}
-                className="rounded-pill border border-amber-600 bg-amber-100 px-4 py-1.5 text-sm font-medium text-ink-900 hover:bg-amber-100/70"
+                className="flex min-h-11 items-center rounded-pill border border-amber-600 bg-amber-100 px-4 text-sm font-medium text-ink-900 hover:bg-amber-100/70"
               >
                 Reschedule
               </button>
@@ -114,7 +114,7 @@ export function ManageAppointmentPage() {
                 onClick={() => {
                   if (window.confirm('Cancel this appointment?')) cancelMutation.mutate()
                 }}
-                className="rounded-pill border border-hairline px-4 py-1.5 text-sm font-medium text-ink-700 hover:text-ink-900"
+                className="flex min-h-11 items-center rounded-pill border border-hairline px-4 text-sm font-medium text-ink-700 hover:text-ink-900"
               >
                 Cancel
               </button>
@@ -132,7 +132,7 @@ export function ManageAppointmentPage() {
                     type="button"
                     onClick={() => rescheduleMutation.mutate(slot.start)}
                     disabled={rescheduleMutation.isPending}
-                    className="rounded-pill border border-amber-600 bg-amber-100 px-3 py-1 font-mono text-xs text-ink-900 disabled:opacity-50"
+                    className="flex min-h-11 items-center rounded-pill border border-amber-600 bg-amber-100 px-3 font-mono text-xs text-ink-900 disabled:opacity-50"
                   >
                     {new Date(slot.start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}{' '}
                     {formatClockFromDate(new Date(slot.start))}
@@ -142,7 +142,7 @@ export function ManageAppointmentPage() {
               <button
                 type="button"
                 onClick={() => setShowReschedule(false)}
-                className="mt-2 self-start text-sm text-ink-700 hover:text-ink-900"
+                className="mt-2 flex min-h-11 items-center self-start px-1 text-sm text-ink-700 hover:text-ink-900"
               >
                 Cancel reschedule
               </button>

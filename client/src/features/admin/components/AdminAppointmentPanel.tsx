@@ -64,7 +64,7 @@ export function AdminAppointmentPanel({ appointment, onClose }: AdminAppointment
           <p className="text-md font-medium text-ink-900">{appointment.name}</p>
           <p className="text-sm text-ink-700">{appointment.email}</p>
           <p className="mt-2 text-sm text-ink-700">{appointment.purpose}</p>
-          <p className="mt-2 text-xs uppercase tracking-wide text-ink-500">
+          <p className="mt-2 text-xs uppercase tracking-wide text-ink-700">
             {appointment.source} · {appointment.status}
           </p>
         </div>
@@ -108,7 +108,7 @@ export function AdminAppointmentPanel({ appointment, onClose }: AdminAppointment
                   rescheduleMutation.mutate()
                 }}
                 disabled={rescheduleMutation.isPending}
-                className="rounded-pill border border-amber-600 bg-amber-100 px-4 py-1.5 text-sm font-medium text-ink-900 hover:bg-amber-100/70 disabled:opacity-50"
+                className="flex min-h-11 items-center rounded-pill border border-amber-600 bg-amber-100 px-4 text-sm font-medium text-ink-900 hover:bg-amber-100/70 disabled:opacity-50"
               >
                 Save
               </button>
@@ -121,7 +121,7 @@ export function AdminAppointmentPanel({ appointment, onClose }: AdminAppointment
                   }
                 }}
                 disabled={cancelMutation.isPending}
-                className="rounded-pill border border-hairline px-4 py-1.5 text-sm font-medium text-ink-700 hover:text-ink-900 disabled:opacity-50"
+                className="flex min-h-11 items-center rounded-pill border border-hairline px-4 text-sm font-medium text-ink-700 hover:text-ink-900 disabled:opacity-50"
               >
                 Cancel appointment
               </button>

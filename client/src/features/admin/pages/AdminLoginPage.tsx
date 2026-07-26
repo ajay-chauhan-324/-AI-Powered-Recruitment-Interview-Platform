@@ -66,7 +66,7 @@ export function AdminLoginPage() {
         <button
           type="submit"
           disabled={mutation.isPending}
-          className="mt-6 w-full rounded-pill border border-amber-600 bg-amber-100 px-4 py-2 text-sm font-medium text-ink-900 hover:bg-amber-100/70 disabled:opacity-50"
+          className="mt-6 flex min-h-11 w-full items-center justify-center rounded-pill border border-amber-600 bg-amber-100 px-4 text-sm font-medium text-ink-900 hover:bg-amber-100/70 disabled:opacity-50"
         >
           {mutation.isPending ? 'Signing in…' : 'Sign in'}
         </button>

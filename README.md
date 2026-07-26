@@ -4,7 +4,7 @@ AI-powered smart appointment booking system. The full engineering and design spe
 
 ## Status
 
-**Phases 1-6 and 8-10** complete: client/server scaffolding and design tokens, MongoDB models and validation, the timezone-aware availability engine, a transaction-safe booking engine (create/reschedule/cancel) with automated tests covering a real concurrent double-booking race, the Time Canvas wired to real data with real-time sync over Socket.IO, a working public guest booking experience (manage link at `/manage/:token`, no login), an authenticated admin workspace (`/admin`) — full appointment detail and history, create/reschedule/resize/cancel, and working-hours/breaks/blocked-time configuration (`/admin/schedule`) — and notifications (confirmation/reschedule/cancellation email) with a reminder abstraction ready for a future scheduler.
+**Phases 1-6 and 8-11** complete: client/server scaffolding and design tokens, MongoDB models and validation, the timezone-aware availability engine, a transaction-safe booking engine (create/reschedule/cancel) with automated tests covering a real concurrent double-booking race, the Time Canvas wired to real data with real-time sync over Socket.IO, a working public guest booking experience (manage link at `/manage/:token`, no login), an authenticated admin workspace (`/admin`) — full appointment detail and history, create/reschedule/resize/cancel, and working-hours/breaks/blocked-time configuration (`/admin/schedule`) — and notifications (confirmation/reschedule/cancellation email) with a reminder abstraction ready for a future scheduler.
 
 **Phase 7 (AI conversation layer) is on hold**, blocked on an Anthropic API key (not something this assistant can generate) — see `server/.env.example`'s `ANTHROPIC_API_KEY`. Until it's provided, the public booking path (direct calendar interaction) stands in for the AI-driven entry point CLAUDE.md's flow describes; both are meant to converge on the same `AppointmentService`, so adding the AI layer later won't change this work.
 
@@ -86,6 +86,7 @@ npm run build
 
 - `react-router-dom`/`react-router` are pinned to `7.11.0` — versions `7.12.0` through `8.2.0` have a disclosed high-severity CSRF advisory (GHSA-qwww-vcr4-c8h2) with no patched release yet at time of writing. Check before upgrading past this pin.
 - Production deployment needs a server/reverse-proxy rewrite so deep links like `/manage/:token` serve `index.html` (Vite's dev server already does this automatically) — not yet configured, tracked for Phase 14.
+- Accessibility (Phase 11) was audited at the code level — no browser tool was available this session, so nothing here was verified by an actual screen reader or a visual pass. Two real WCAG AA contrast violations and a missing keyboard path to create a new appointment (previously mouse/touch-only) were found and fixed; touch targets were brought to 44px on primary buttons throughout. Known remaining gaps, lower priority: native form controls in `/admin/schedule` (checkboxes, time inputs, selects) rely on browser-default touch sizing rather than an explicit 44px target, and the header's narrowest-phone-width layout (≈320px) hasn't been visually confirmed to avoid horizontal scroll.
 
 ## Design system
 

@@ -4,7 +4,7 @@ import { Header } from '@/components/layout/Header'
 import { TimeCanvas, type CanvasZoom } from '@/features/calendar/components/TimeCanvas'
 import { AiRibbon } from '@/features/ai/components/AiRibbon'
 import { BookingPanel } from '@/features/booking/components/BookingPanel'
-import { DEFAULT_APPOINTMENT_DURATION_MINUTES } from '@/features/booking/constants'
+import { DEFAULT_APPOINTMENT_DURATION_MINUTES, computeDefaultBookingStart } from '@/features/booking/constants'
 
 export function CalendarApp() {
   const [zoom, setZoom] = useState<CanvasZoom>('day')
@@ -15,7 +15,13 @@ export function CalendarApp() {
     <>
       <AppShell
         header={
-          <Header zoom={zoom} onZoomChange={setZoom} anchorDate={anchorDate} onAnchorDateChange={setAnchorDate} />
+          <Header
+            zoom={zoom}
+            onZoomChange={setZoom}
+            anchorDate={anchorDate}
+            onAnchorDateChange={setAnchorDate}
+            onBookNew={() => setBookingDraftStart(computeDefaultBookingStart())}
+          />
         }
         canvas={
           <TimeCanvas

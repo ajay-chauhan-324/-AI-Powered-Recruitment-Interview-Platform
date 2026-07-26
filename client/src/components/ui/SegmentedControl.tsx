@@ -44,6 +44,9 @@ export function SegmentedControl<TValue extends string>({
       {options.map((option, index) => {
         const selected = option.value === value
         return (
+          // The button itself is the 44px minimum touch target (CLAUDE.md §24); the inner
+          // span carries the compact visible pill styling so the control's actual on-screen
+          // size stays true to the minimal design instead of growing to match the hit area.
           <button
             key={option.value}
             id={`${groupId}-${option.value}`}
@@ -53,14 +56,18 @@ export function SegmentedControl<TValue extends string>({
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(option.value)}
             onKeyDown={(event) => handleKeyDown(event, index)}
-            className={
-              'rounded-pill px-3 py-1 text-sm font-medium transition-colors ' +
-              (selected
-                ? 'bg-amber-100 text-ink-900 border border-amber-600/40'
-                : 'border border-transparent text-ink-700 hover:text-ink-900')
-            }
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-pill"
           >
-            {option.label}
+            <span
+              className={
+                'rounded-pill px-3 py-1 text-sm font-medium transition-colors ' +
+                (selected
+                  ? 'border border-amber-600/40 bg-amber-100 text-ink-900'
+                  : 'border border-transparent text-ink-700')
+              }
+            >
+              {option.label}
+            </span>
           </button>
         )
       })}

@@ -9,6 +9,7 @@ import { BlockedRange } from '@/features/calendar/components/BlockedRange'
 import { NowIndicator } from '@/features/calendar/components/NowIndicator'
 import { getDayRange, addPeriod, isSameLocalDay } from '@/lib/dateContext'
 import { HOUR_ROW_HEIGHT, clipRangeToDay, offsetToTimeOfDay } from '@/features/calendar/lib/layout'
+import { computeDefaultBookingStart } from '@/features/booking/constants'
 
 const HOUR_LABELS = Array.from({ length: 24 }, (_, hour) => {
   const period = hour < 12 ? 'AM' : 'PM'
@@ -33,6 +34,16 @@ export function AdminCalendarPage() {
 
   const range = useMemo(() => getDayRange(anchorDate), [anchorDate])
   const now = useMemo(() => new Date(), [])
+
+  // The keyboard-accessible "New appointment" button's default time should reflect the day
+  // being viewed, not always "now" — an admin who's navigated to next week and hits this
+  // button expects a draft on the day they're looking at, same as clicking the rail would give.
+  function defaultBookingStartForViewedDay(): Date {
+    if (isSameLocalDay(anchorDate, now)) return computeDefaultBookingStart(now)
+    const start = new Date(anchorDate)
+    start.setHours(9, 0, 0, 0)
+    return start
+  }
 
   const appointmentsQuery = useQuery({
     queryKey: ['admin-appointments', range.start.toISOString(), range.end.toISOString()],
@@ -67,28 +78,38 @@ export function AdminCalendarPage() {
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-hairline px-4 sm:px-6">
         <div className="flex items-center gap-4">
           <span className="font-mono text-sm font-medium tracking-wide text-ink-900">The Ledger — Admin</span>
-          <nav className="flex items-center gap-3 text-sm text-ink-700">
-            <span className="font-medium text-ink-900">Calendar</span>
-            <Link to="/admin/schedule" className="hover:text-ink-900">
+          <nav className="flex items-center text-sm text-ink-700">
+            <span className="flex min-h-11 items-center px-2 font-medium text-ink-900">Calendar</span>
+            <Link to="/admin/schedule" className="flex min-h-11 items-center px-2 hover:text-ink-900">
               Schedule
             </Link>
           </nav>
         </div>
-        <button
-          type="button"
-          onClick={() => logoutMutation.mutate()}
-          className="text-sm text-ink-700 hover:text-ink-900"
-        >
-          Log out
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setBookingDraftStart(defaultBookingStartForViewedDay())}
+            className="flex min-h-11 items-center rounded-pill border border-amber-600 bg-amber-100 px-3 text-sm font-medium text-ink-900 hover:bg-amber-100/70"
+          >
+            New appointment
+          </button>
+          <button
+            type="button"
+            onClick={() => logoutMutation.mutate()}
+            className="flex min-h-11 items-center px-2 text-sm text-ink-700 hover:text-ink-900"
+          >
+            Log out
+          </button>
+        </div>
       </header>
 
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-hairline px-4 sm:px-6">
+      <div className="flex h-14 shrink-0 items-center gap-0.5 border-b border-hairline px-4 sm:px-6">
+        {/* min-h/w-11 = 44px minimum touch target (CLAUDE.md §24). */}
         <button
           type="button"
           onClick={() => setAnchorDate((date) => addPeriod('day', date, -1))}
           aria-label="Previous day"
-          className="rounded-md px-1.5 py-0.5 text-ink-700 hover:bg-paper-100 hover:text-ink-900"
+          className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-ink-700 hover:bg-paper-100 hover:text-ink-900"
         >
           ‹
         </button>
@@ -96,7 +117,7 @@ export function AdminCalendarPage() {
           type="button"
           onClick={() => setAnchorDate((date) => addPeriod('day', date, 1))}
           aria-label="Next day"
-          className="rounded-md px-1.5 py-0.5 text-ink-700 hover:bg-paper-100 hover:text-ink-900"
+          className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-ink-700 hover:bg-paper-100 hover:text-ink-900"
         >
           ›
         </button>
@@ -104,12 +125,12 @@ export function AdminCalendarPage() {
           <button
             type="button"
             onClick={() => setAnchorDate(new Date())}
-            className="rounded-pill border border-hairline px-2 py-0.5 text-xs font-medium text-ink-700 hover:text-ink-900"
+            className="flex min-h-11 items-center rounded-pill border border-hairline px-3 text-xs font-medium text-ink-700 hover:text-ink-900"
           >
             Today
           </button>
         )}
-        <span className="text-sm text-ink-700">
+        <span className="ml-1 text-sm text-ink-700">
           {anchorDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
         </span>
       </div>

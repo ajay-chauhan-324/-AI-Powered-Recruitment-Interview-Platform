@@ -16,6 +16,9 @@ interface HeaderProps {
   onZoomChange: (zoom: CanvasZoom) => void
   anchorDate: Date
   onAnchorDateChange: (date: Date) => void
+  /** The keyboard-operable equivalent of tapping an available slot on the canvas — tapping
+   * empty space has no keyboard path, so this button is not optional decoration. */
+  onBookNew: () => void
 }
 
 /**
@@ -24,7 +27,7 @@ interface HeaderProps {
  * date range you're looking at, reflecting the current zoom level per
  * CLAUDE.md §7), and the zoom-level switch itself.
  */
-export function Header({ zoom, onZoomChange, anchorDate, onAnchorDateChange }: HeaderProps) {
+export function Header({ zoom, onZoomChange, anchorDate, onAnchorDateChange, onBookNew }: HeaderProps) {
   const dateLabel = useMemo(() => getDateContextLabel(zoom, anchorDate), [zoom, anchorDate])
   const isToday = useMemo(() => isSameLocalDay(anchorDate, new Date()), [anchorDate])
   const unit = ZOOM_UNIT_LABEL[zoom]
@@ -35,12 +38,15 @@ export function Header({ zoom, onZoomChange, anchorDate, onAnchorDateChange }: H
         <span className="shrink-0 font-mono text-sm font-medium tracking-wide text-ink-900">
           The Ledger
         </span>
-        <div className="hidden items-center gap-1 sm:flex">
+        <div className="hidden items-center gap-0.5 sm:flex">
+          {/* min-h/w-11 = 44px minimum touch target (CLAUDE.md §24) even though the visible
+              glyph/pill is smaller — the header's own height (56px at this breakpoint) has
+              room for it without changing the compact visual design. */}
           <button
             type="button"
             onClick={() => onAnchorDateChange(addPeriod(zoom, anchorDate, -1))}
             aria-label={`Previous ${unit}`}
-            className="rounded-md px-1.5 py-0.5 text-ink-700 hover:bg-paper-100 hover:text-ink-900"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-ink-700 hover:bg-paper-100 hover:text-ink-900"
           >
             ‹
           </button>
@@ -48,7 +54,7 @@ export function Header({ zoom, onZoomChange, anchorDate, onAnchorDateChange }: H
             type="button"
             onClick={() => onAnchorDateChange(addPeriod(zoom, anchorDate, 1))}
             aria-label={`Next ${unit}`}
-            className="rounded-md px-1.5 py-0.5 text-ink-700 hover:bg-paper-100 hover:text-ink-900"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-ink-700 hover:bg-paper-100 hover:text-ink-900"
           >
             ›
           </button>
@@ -56,7 +62,7 @@ export function Header({ zoom, onZoomChange, anchorDate, onAnchorDateChange }: H
             <button
               type="button"
               onClick={() => onAnchorDateChange(new Date())}
-              className="ml-1 rounded-pill border border-hairline px-2 py-0.5 text-xs font-medium text-ink-700 hover:text-ink-900"
+              className="flex min-h-11 items-center rounded-pill border border-hairline px-3 text-xs font-medium text-ink-700 hover:text-ink-900"
             >
               Today
             </button>
@@ -64,7 +70,16 @@ export function Header({ zoom, onZoomChange, anchorDate, onAnchorDateChange }: H
         </div>
         <span className="truncate text-sm text-ink-700">{dateLabel}</span>
       </div>
-      <SegmentedControl label="Calendar zoom level" options={ZOOM_OPTIONS} value={zoom} onChange={onZoomChange} />
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onBookNew}
+          className="flex min-h-11 items-center rounded-pill border border-amber-600 bg-amber-100 px-3 text-sm font-medium text-ink-900 hover:bg-amber-100/70"
+        >
+          Book
+        </button>
+        <SegmentedControl label="Calendar zoom level" options={ZOOM_OPTIONS} value={zoom} onChange={onZoomChange} />
+      </div>
     </header>
   )
 }
