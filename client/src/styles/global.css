@@ -75,6 +75,22 @@
     z-index: 100;
   }
 
+  /* One highlight-pulse cycle for real-time updates (CLAUDE.md §21) — a single
+     brief flash, not a repeating/attention-grabbing animation. Automatically
+     shortened by the prefers-reduced-motion override below. */
+  @keyframes pulse-highlight {
+    0% {
+      background-color: var(--color-amber-100);
+    }
+    100% {
+      background-color: var(--color-paper-50);
+    }
+  }
+
+  .pulse-highlight {
+    animation: pulse-highlight 900ms ease-out;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

@@ -17,6 +17,7 @@ export default defineConfig({
     // client and API from one origin.
     proxy: {
       '/api': 'http://localhost:4000',
+      '/socket.io': { target: 'http://localhost:4000', ws: true },
     },
   },
 })

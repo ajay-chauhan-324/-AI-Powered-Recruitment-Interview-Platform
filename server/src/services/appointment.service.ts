@@ -5,6 +5,16 @@ import { BookingLockModel } from '../models/BookingLock.model.js'
 import { createAppointmentInputSchema, type CreateAppointmentInput } from '../validators/appointment.validators.js'
 import { findNearestAlternatives, isSlotAvailable } from './availability.service.js'
 import { AppointmentNotFoundError, BookingValidationError, SlotConflictError } from './booking.errors.js'
+import { appointmentEvents } from '../events/appointmentEvents.js'
+
+function toEventPayload(appointment: AppointmentDocument) {
+  return {
+    id: appointment._id.toString(),
+    startAt: appointment.startAt,
+    endAt: appointment.endAt,
+    status: appointment.status as 'pending' | 'confirmed' | 'cancelled',
+  }
+}
 
 /**
  * The booking authority (CLAUDE.md §11). Every booking path — public, AI,
@@ -116,6 +126,8 @@ export async function createAppointment(rawInput: CreateAppointmentInput): Promi
     throw new Error('Appointment creation failed unexpectedly.')
   }
 
+  appointmentEvents.emitAppointmentEvent('appointment.created', toEventPayload(created))
+
   return { appointment: created, manageToken }
 }
 
@@ -178,6 +190,8 @@ export async function rescheduleAppointment(appointmentId: string, newStart: Dat
     throw new Error('Appointment reschedule failed unexpectedly.')
   }
 
+  appointmentEvents.emitAppointmentEvent('appointment.updated', toEventPayload(updated))
+
   return updated
 }
 
@@ -191,6 +205,9 @@ export async function cancelAppointment(appointmentId: string): Promise<Appointm
 
   existing.status = 'cancelled'
   await existing.save()
+
+  appointmentEvents.emitAppointmentEvent('appointment.cancelled', toEventPayload(existing))
+
   return existing
 }
 

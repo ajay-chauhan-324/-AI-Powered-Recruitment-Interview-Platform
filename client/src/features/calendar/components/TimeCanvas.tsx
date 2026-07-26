@@ -3,6 +3,7 @@ import type { TouchEvent } from 'react'
 import { getMonthGridCells, getRangeForZoom, isSameLocalDay, type DateRange } from '@/lib/dateContext'
 import { HOUR_ROW_HEIGHT, clipRangeToDay, minutesToOffset, offsetForDate, weekdayIndexMondayFirst } from '@/features/calendar/lib/layout'
 import { useCalendarView } from '@/features/calendar/hooks/useCalendarView'
+import { useCalendarRealtime } from '@/features/calendar/hooks/useCalendarRealtime'
 import type { CalendarAppointment, CalendarBlock } from '@/features/calendar/api/calendarApi'
 import { AppointmentTag } from './AppointmentTag'
 import { BlockedRange } from './BlockedRange'
@@ -51,6 +52,7 @@ export function TimeCanvas({ zoom, anchorDate, onAnchorDateChange, onZoomChange 
   const now = useMemo(() => new Date(), [])
   const range = useMemo(() => getRangeForZoom(zoom, anchorDate), [zoom, anchorDate])
   const { data, isLoading, isError } = useCalendarView(range)
+  const { recentlyChangedIds } = useCalendarRealtime()
 
   useEffect(() => {
     const node = scrollRef.current
@@ -107,8 +109,16 @@ export function TimeCanvas({ zoom, anchorDate, onAnchorDateChange, onZoomChange 
       {isLoading && !data && (
         <p className="mx-auto max-w-5xl px-4 pt-3 text-xs text-ink-700 sm:px-6">Loading…</p>
       )}
-      {zoom === 'day' && <DayFoundation range={range} data={data} now={now} isSameAsToday={isSameLocalDay(anchorDate, now)} />}
-      {zoom === 'week' && <WeekFoundation range={range} data={data} />}
+      {zoom === 'day' && (
+        <DayFoundation
+          range={range}
+          data={data}
+          now={now}
+          isSameAsToday={isSameLocalDay(anchorDate, now)}
+          recentlyChangedIds={recentlyChangedIds}
+        />
+      )}
+      {zoom === 'week' && <WeekFoundation range={range} data={data} recentlyChangedIds={recentlyChangedIds} />}
       {zoom === 'month' && (
         <MonthFoundation
           anchorDate={anchorDate}
@@ -143,11 +153,13 @@ function DayFoundation({
   data,
   now,
   isSameAsToday,
+  recentlyChangedIds,
 }: {
   range: DateRange
   data: ViewData | undefined
   now: Date
   isSameAsToday: boolean
+  recentlyChangedIds: ReadonlySet<string>
 }) {
   const appointments = data?.appointments ?? []
   const blockedSlots = data?.blockedSlots ?? []
@@ -183,7 +195,15 @@ function DayFoundation({
               range.end,
             )
             if (!clipped) return null
-            return <AppointmentTag key={appointment.id} startAt={clipped.start} endAt={clipped.end} status={appointment.status} />
+            return (
+              <AppointmentTag
+                key={appointment.id}
+                startAt={clipped.start}
+                endAt={clipped.end}
+                status={appointment.status}
+                highlighted={recentlyChangedIds.has(appointment.id)}
+              />
+            )
           })}
           {isSameAsToday && <NowIndicator now={now} />}
         </div>
@@ -192,7 +212,15 @@ function DayFoundation({
   )
 }
 
-function WeekFoundation({ range, data }: { range: DateRange; data: ViewData | undefined }) {
+function WeekFoundation({
+  range,
+  data,
+  recentlyChangedIds,
+}: {
+  range: DateRange
+  data: ViewData | undefined
+  recentlyChangedIds: ReadonlySet<string>
+}) {
   const appointments = data?.appointments ?? []
   const blockedSlots = data?.blockedSlots ?? []
 
@@ -253,6 +281,7 @@ function WeekFoundation({ range, data }: { range: DateRange; data: ViewData | un
                     endAt={clipped.end}
                     status={appointment.status}
                     compact
+                    highlighted={recentlyChangedIds.has(appointment.id)}
                   />
                 )
               })}

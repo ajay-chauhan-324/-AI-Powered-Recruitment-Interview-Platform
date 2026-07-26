@@ -4,9 +4,9 @@ AI-powered smart appointment booking system. The full engineering and design spe
 
 ## Status
 
-**Phases 1-5** complete: client/server scaffolding and design tokens, MongoDB models and validation, the timezone-aware availability engine, a transaction-safe booking engine (create/reschedule/cancel) with automated tests covering a real concurrent double-booking race, and the Time Canvas wired to real data — Day/Week/Month with real appointments and blocked time, date navigation (prev/next/today, swipe on mobile, click-a-day-to-zoom in Month view), and a live current-time indicator.
+**Phases 1-6** complete: client/server scaffolding and design tokens, MongoDB models and validation, the timezone-aware availability engine, a transaction-safe booking engine (create/reschedule/cancel) with automated tests covering a real concurrent double-booking race, the Time Canvas wired to real data (Day/Week/Month, real appointments and blocked time, date navigation, a live current-time indicator), and real-time sync — booking mutations broadcast over Socket.IO so every connected client's calendar updates live, with a brief highlight pulse on the affected appointment, never a page refresh.
 
-The calendar read endpoint is intentionally public-safe (time/status only, no name/email/purpose) since there's no authentication yet — Phase 9 adds an authenticated admin view with full appointment detail and history. No AI integration, real-time sync, or admin functionality exists yet — those are later phases (see CLAUDE.md §28).
+The calendar read endpoint (and the real-time events) are intentionally public-safe (time/status only, no name/email/purpose) since there's no authentication yet — Phase 9 adds an authenticated admin view with full appointment detail and history. No AI integration or admin functionality exists yet — those are later phases (see CLAUDE.md §28).
 
 Run the server's test suite with `cd server && npm test` (requires the local MongoDB replica set — see "Local MongoDB" below).
 

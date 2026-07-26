@@ -21,6 +21,8 @@ interface AppointmentTagProps {
   source?: AppointmentTagSource
   /** Week view renders a narrower column and drops the attendee line. */
   compact?: boolean
+  /** Briefly true right after a real-time update affecting this appointment (CLAUDE.md §21). */
+  highlighted?: boolean
 }
 
 /**
@@ -28,7 +30,16 @@ interface AppointmentTagProps {
  * source indicator, and a status left-edge bar (CLAUDE.md §8). Positioned
  * absolutely within a relative hour-rail ancestor.
  */
-export function AppointmentTag({ startAt, endAt, status, title, attendee, source, compact = false }: AppointmentTagProps) {
+export function AppointmentTag({
+  startAt,
+  endAt,
+  status,
+  title,
+  attendee,
+  source,
+  compact = false,
+  highlighted = false,
+}: AppointmentTagProps) {
   const cancelled = status === 'cancelled'
   const startLabel = formatClockFromDate(startAt)
   const endLabel = formatClockFromDate(endAt)
@@ -50,7 +61,8 @@ export function AppointmentTag({ startAt, endAt, status, title, attendee, source
         'absolute overflow-hidden rounded-md border-l-[3px] bg-paper-50 px-2.5 py-1.5 shadow-tag ' +
         (compact ? 'inset-x-1' : 'left-2 right-2 sm:right-auto sm:w-[min(60%,26rem)]') +
         ' ' +
-        (cancelled ? 'border-ink-300' : 'border-ink-900')
+        (cancelled ? 'border-ink-300' : 'border-ink-900') +
+        (highlighted ? ' pulse-highlight' : '')
       }
     >
       <p className="font-mono text-xs tabular-nums text-ink-700">
