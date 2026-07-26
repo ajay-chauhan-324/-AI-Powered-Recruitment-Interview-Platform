@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { TouchEvent } from 'react'
 import { getMonthGridCells, getRangeForZoom, isSameLocalDay, type DateRange } from '@/lib/dateContext'
-import { HOUR_ROW_HEIGHT, clipRangeToDay, minutesToOffset, offsetForDate, weekdayIndexMondayFirst } from '@/features/calendar/lib/layout'
+import {
+  HOUR_ROW_HEIGHT,
+  clipRangeToDay,
+  minutesToOffset,
+  offsetForDate,
+  offsetToTimeOfDay,
+  weekdayIndexMondayFirst,
+} from '@/features/calendar/lib/layout'
 import { useCalendarView } from '@/features/calendar/hooks/useCalendarView'
 import { useCalendarRealtime } from '@/features/calendar/hooks/useCalendarRealtime'
 import type { CalendarAppointment, CalendarBlock } from '@/features/calendar/api/calendarApi'
@@ -34,6 +41,8 @@ interface TimeCanvasProps {
   anchorDate: Date
   onAnchorDateChange: (date: Date) => void
   onZoomChange: (zoom: CanvasZoom) => void
+  /** Tapping an available time on Day view (never a drag — CLAUDE.md §18) opens the booking panel. */
+  onSelectSlot: (start: Date) => void
 }
 
 /**
@@ -42,12 +51,13 @@ interface TimeCanvasProps {
  * calendarView.service.ts) — no name/email/purpose, since no authentication
  * exists yet (Phase 9 adds an authenticated admin variant with full detail).
  *
- * "Conflict states" (CLAUDE.md §5 Phase 5 scope) has no trigger yet — there
- * is no interactive booking or drag-to-reschedule until Phase 8/9, so
- * there's nothing to conflict with. The visual language (border-conflict,
- * conflict-tint) is ready in the design tokens for those phases to use.
+ * Day view is tappable (CLAUDE.md §18 — a tap, never a drag) to open the
+ * booking panel; a conflict on submit is surfaced by BookingPanel itself
+ * (border-conflict/conflict-tint tokens), not here on the canvas. Week/Month
+ * stay read-only navigation surfaces in this phase; drag-to-reschedule is
+ * admin-only (Phase 9).
  */
-export function TimeCanvas({ zoom, anchorDate, onAnchorDateChange, onZoomChange }: TimeCanvasProps) {
+export function TimeCanvas({ zoom, anchorDate, onAnchorDateChange, onZoomChange, onSelectSlot }: TimeCanvasProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const now = useMemo(() => new Date(), [])
   const range = useMemo(() => getRangeForZoom(zoom, anchorDate), [zoom, anchorDate])
@@ -116,6 +126,7 @@ export function TimeCanvas({ zoom, anchorDate, onAnchorDateChange, onZoomChange 
           now={now}
           isSameAsToday={isSameLocalDay(anchorDate, now)}
           recentlyChangedIds={recentlyChangedIds}
+          onSelectSlot={onSelectSlot}
         />
       )}
       {zoom === 'week' && <WeekFoundation range={range} data={data} recentlyChangedIds={recentlyChangedIds} />}
@@ -154,16 +165,27 @@ function DayFoundation({
   now,
   isSameAsToday,
   recentlyChangedIds,
+  onSelectSlot,
 }: {
   range: DateRange
   data: ViewData | undefined
   now: Date
   isSameAsToday: boolean
   recentlyChangedIds: ReadonlySet<string>
+  onSelectSlot: (start: Date) => void
 }) {
   const appointments = data?.appointments ?? []
   const blockedSlots = data?.blockedSlots ?? []
   const isEmpty = data && appointments.length === 0 && blockedSlots.length === 0
+
+  function handleRailClick(event: React.MouseEvent<HTMLDivElement>) {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const { hour, minute } = offsetToTimeOfDay(event.clientY - rect.top)
+    const clicked = new Date(range.start)
+    clicked.setHours(hour, minute, 0, 0)
+    if (clicked.getTime() <= Date.now()) return
+    onSelectSlot(clicked)
+  }
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-4 sm:px-6">
@@ -180,7 +202,13 @@ function DayFoundation({
             </div>
           ))}
         </div>
-        <div className="relative flex-1 border-l border-hairline">
+        <div
+          className="relative flex-1 cursor-pointer border-l border-hairline"
+          onClick={handleRailClick}
+          role="button"
+          tabIndex={-1}
+          aria-label="Tap a time to book an appointment"
+        >
           <HourGridLines />
           {blockedSlots.map((block) => {
             const clipped = clipRangeToDay(new Date(block.startAt), new Date(block.endAt), range.start, range.end)

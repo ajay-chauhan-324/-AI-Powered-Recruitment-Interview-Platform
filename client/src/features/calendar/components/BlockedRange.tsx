@@ -21,7 +21,12 @@ export function BlockedRange({ label, startAt, endAt }: BlockedRangeProps) {
   }
 
   return (
-    <div style={style} className="absolute inset-x-0 border-y border-hairline bg-paper-200" role="presentation">
+    <div
+      style={style}
+      className="absolute inset-x-0 border-y border-hairline bg-paper-200"
+      role="presentation"
+      onClick={(event) => event.stopPropagation()}
+    >
       <span className="absolute left-2 top-1 text-xs text-ink-700 sm:left-3">{label}</span>
     </div>
   )

@@ -57,6 +57,7 @@ export function AppointmentTag({
       style={style}
       role="group"
       aria-label={`${displayTitle}, ${startLabel} to ${endLabel}${cancelled ? ', cancelled' : ''}`}
+      onClick={(event) => event.stopPropagation()}
       className={
         'absolute overflow-hidden rounded-md border-l-[3px] bg-paper-50 px-2.5 py-1.5 shadow-tag ' +
         (compact ? 'inset-x-1' : 'left-2 right-2 sm:right-auto sm:w-[min(60%,26rem)]') +

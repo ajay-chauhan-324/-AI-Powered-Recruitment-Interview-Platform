@@ -1,6 +1,8 @@
 import type { NextFunction, Request, Response } from 'express'
 import { ZodError } from 'zod'
 import { env } from '../config/env.js'
+import { AppointmentNotFoundError, BookingValidationError, SlotConflictError } from '../services/booking.errors.js'
+import { ScheduleNotConfiguredError } from '../services/availability.service.js'
 
 export class AppError extends Error {
   readonly statusCode: number
@@ -30,6 +32,28 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
   if (err instanceof ZodError) {
     const message = err.issues.map((issue) => issue.message).join('; ')
     res.status(400).json({ error: { code: 'VALIDATION_ERROR', message } })
+    return
+  }
+
+  if (err instanceof BookingValidationError) {
+    res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: err.message } })
+    return
+  }
+
+  if (err instanceof SlotConflictError) {
+    res
+      .status(409)
+      .json({ error: { code: 'SLOT_CONFLICT', message: err.message }, alternatives: err.alternatives })
+    return
+  }
+
+  if (err instanceof AppointmentNotFoundError) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: err.message } })
+    return
+  }
+
+  if (err instanceof ScheduleNotConfiguredError) {
+    res.status(503).json({ error: { code: 'SCHEDULE_NOT_CONFIGURED', message: err.message } })
     return
   }
 

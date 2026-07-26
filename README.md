@@ -4,9 +4,11 @@ AI-powered smart appointment booking system. The full engineering and design spe
 
 ## Status
 
-**Phases 1-6** complete: client/server scaffolding and design tokens, MongoDB models and validation, the timezone-aware availability engine, a transaction-safe booking engine (create/reschedule/cancel) with automated tests covering a real concurrent double-booking race, the Time Canvas wired to real data (Day/Week/Month, real appointments and blocked time, date navigation, a live current-time indicator), and real-time sync — booking mutations broadcast over Socket.IO so every connected client's calendar updates live, with a brief highlight pulse on the affected appointment, never a page refresh.
+**Phases 1-6 and 8** complete: client/server scaffolding and design tokens, MongoDB models and validation, the timezone-aware availability engine, a transaction-safe booking engine (create/reschedule/cancel) with automated tests covering a real concurrent double-booking race, the Time Canvas wired to real data with real-time sync over Socket.IO, and a working public guest booking experience — tap an available time on Day view, fill in name/email/purpose, and book; a secure manage link (`/manage/:token`) lets a guest view, reschedule, or cancel afterward with no login.
 
-The calendar read endpoint (and the real-time events) are intentionally public-safe (time/status only, no name/email/purpose) since there's no authentication yet — Phase 9 adds an authenticated admin view with full appointment detail and history. No AI integration or admin functionality exists yet — those are later phases (see CLAUDE.md §28).
+**Phase 7 (AI conversation layer) is on hold**, blocked on an Anthropic API key (not something this assistant can generate) — see `server/.env.example`'s `ANTHROPIC_API_KEY`. Until it's provided, the public booking path above (direct calendar interaction) stands in for the AI-driven entry point CLAUDE.md's flow describes; both are meant to converge on the same `AppointmentService`, so adding the AI layer later won't change this phase's work.
+
+The calendar read endpoint and real-time events are intentionally public-safe (time/status only, no name/email/purpose) since there's no authentication yet — Phase 9 adds an authenticated admin view with full appointment detail and history. No admin functionality exists yet — that's the next phase (see CLAUDE.md §28).
 
 Run the server's test suite with `cd server && npm test` (requires the local MongoDB replica set — see "Local MongoDB" below).
 
@@ -57,13 +59,18 @@ mongo --port 27018 --eval "rs.initiate()"
 
 ## Verification
 
-Each project has the same three checks:
+Each project has the same three checks (the server also has `npm test`, requiring the local MongoDB replica set above):
 
 ```
 npm run typecheck
 npm run lint
 npm run build
 ```
+
+## Known notes
+
+- `react-router-dom`/`react-router` are pinned to `7.11.0` — versions `7.12.0` through `8.2.0` have a disclosed high-severity CSRF advisory (GHSA-qwww-vcr4-c8h2) with no patched release yet at time of writing. Check before upgrading past this pin.
+- Production deployment needs a server/reverse-proxy rewrite so deep links like `/manage/:token` serve `index.html` (Vite's dev server already does this automatically) — not yet configured, tracked for Phase 14.
 
 ## Design system
 

@@ -1,27 +1,12 @@
-import { useState } from 'react'
-import { AppShell } from '@/components/layout/AppShell'
-import { Header } from '@/components/layout/Header'
-import { TimeCanvas, type CanvasZoom } from '@/features/calendar/components/TimeCanvas'
-import { AiRibbon } from '@/features/ai/components/AiRibbon'
+import { Route, Routes } from 'react-router-dom'
+import { CalendarApp } from './CalendarApp'
+import { ManageAppointmentPage } from '@/features/booking/pages/ManageAppointmentPage'
 
 export function App() {
-  const [zoom, setZoom] = useState<CanvasZoom>('day')
-  const [anchorDate, setAnchorDate] = useState(() => new Date())
-
   return (
-    <AppShell
-      header={
-        <Header zoom={zoom} onZoomChange={setZoom} anchorDate={anchorDate} onAnchorDateChange={setAnchorDate} />
-      }
-      canvas={
-        <TimeCanvas
-          zoom={zoom}
-          anchorDate={anchorDate}
-          onAnchorDateChange={setAnchorDate}
-          onZoomChange={setZoom}
-        />
-      }
-      ribbon={<AiRibbon />}
-    />
+    <Routes>
+      <Route path="/" element={<CalendarApp />} />
+      <Route path="/manage/:token" element={<ManageAppointmentPage />} />
+    </Routes>
   )
 }

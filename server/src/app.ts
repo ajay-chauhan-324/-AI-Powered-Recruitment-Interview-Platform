@@ -4,6 +4,8 @@ import helmet from 'helmet'
 import { env } from './config/env.js'
 import { healthRouter } from './routes/health.route.js'
 import { calendarRouter } from './routes/calendar.route.js'
+import { availabilityRouter } from './routes/availability.route.js'
+import { appointmentsRouter } from './routes/appointments.route.js'
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js'
 
 export function createApp() {
@@ -21,6 +23,8 @@ export function createApp() {
 
   app.use('/api/v1/health', healthRouter)
   app.use('/api/v1/calendar', calendarRouter)
+  app.use('/api/v1/availability', availabilityRouter)
+  app.use('/api/v1/appointments', appointmentsRouter)
 
   app.use(notFoundHandler)
   app.use(errorHandler)

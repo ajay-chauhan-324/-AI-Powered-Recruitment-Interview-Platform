@@ -91,6 +91,28 @@
     animation: pulse-highlight 900ms ease-out;
   }
 
+  /* The confirmation seal (CLAUDE.md §22) — the ONE deliberate place in this design
+     system that uses a slight overshoot, reserved so it stays meaningful and isn't
+     diluted by reuse elsewhere. */
+  @keyframes seal-in {
+    0% {
+      transform: scale(0.5);
+      opacity: 0;
+    }
+    70% {
+      transform: scale(1.08);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  .seal-in {
+    animation: seal-in 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

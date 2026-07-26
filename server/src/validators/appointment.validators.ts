@@ -21,3 +21,13 @@ export const createAppointmentInputSchema = z.object({
 })
 
 export type CreateAppointmentInput = z.infer<typeof createAppointmentInputSchema>
+
+/** The public booking endpoint's request body — deliberately omits `source`. A client must
+ * never be trusted to declare its own provenance; the controller hardcodes `source: 'public'`
+ * regardless of anything in the request body. */
+export const publicCreateAppointmentInputSchema = createAppointmentInputSchema.omit({ source: true })
+export type PublicCreateAppointmentInput = z.infer<typeof publicCreateAppointmentInputSchema>
+
+export const rescheduleAppointmentInputSchema = z.object({
+  newStart: z.coerce.date(),
+})
