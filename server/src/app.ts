@@ -13,8 +13,23 @@ import { adminScheduleRouter } from './routes/admin/adminSchedule.route.js'
 import { adminBlockedSlotsRouter } from './routes/admin/adminBlockedSlots.route.js'
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js'
 
+/** Minimal, dependency-free request log: method, path, status, and duration. Enough for
+ * production observability at this project's scale without pulling in morgan/winston for a
+ * handful of routes. */
+function requestLogger(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const startedAt = process.hrtime.bigint()
+  res.on('finish', () => {
+    const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000
+    console.log(`[http] ${req.method} ${req.originalUrl} ${res.statusCode} ${durationMs.toFixed(1)}ms`)
+  })
+  next()
+}
+
 export function createApp() {
   const app = express()
+
+  // See TRUST_PROXY_HOPS in config/env.ts — must match the real deployment topology.
+  app.set('trust proxy', env.TRUST_PROXY_HOPS)
 
   app.disable('x-powered-by')
   app.use(helmet())
@@ -26,6 +41,7 @@ export function createApp() {
   )
   app.use(express.json())
   app.use(cookieParser())
+  app.use(requestLogger)
 
   app.use('/api/v1/health', healthRouter)
   app.use('/api/v1/calendar', calendarRouter)

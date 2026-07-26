@@ -1,8 +1,10 @@
 import http from 'node:http'
 import { createApp } from './app.js'
 import { env } from './config/env.js'
-import { connectDb } from './config/db.js'
+import { connectDb, disconnectDb } from './config/db.js'
 import { initSocketServer } from './sockets/socketServer.js'
+
+const SHUTDOWN_TIMEOUT_MS = 10_000
 
 async function main() {
   await connectDb()
@@ -10,11 +12,41 @@ async function main() {
 
   const app = createApp()
   const httpServer = http.createServer(app)
-  initSocketServer(httpServer)
+  const io = initSocketServer(httpServer)
 
   httpServer.listen(env.PORT, () => {
     console.log(`[server] listening on port ${env.PORT} (${env.NODE_ENV})`)
   })
+
+  // Without this, a deploy/restart (SIGTERM) kills in-flight requests and open socket
+  // connections mid-response instead of draining them first.
+  let shuttingDown = false
+  async function shutdown(signal: NodeJS.Signals) {
+    if (shuttingDown) return
+    shuttingDown = true
+    console.log(`[server] received ${signal}, shutting down gracefully`)
+
+    const forceExitTimer = setTimeout(() => {
+      console.error(`[server] graceful shutdown exceeded ${SHUTDOWN_TIMEOUT_MS}ms, forcing exit`)
+      process.exit(1)
+    }, SHUTDOWN_TIMEOUT_MS)
+    forceExitTimer.unref()
+
+    try {
+      // io.close() disconnects every socket, then closes the underlying httpServer itself
+      // (it's the same instance passed into initSocketServer) — no separate call needed.
+      await io.close()
+      await disconnectDb()
+      console.log('[server] shutdown complete')
+      process.exit(0)
+    } catch (error) {
+      console.error('[server] error during shutdown:', error)
+      process.exit(1)
+    }
+  }
+
+  process.on('SIGTERM', () => void shutdown('SIGTERM'))
+  process.on('SIGINT', () => void shutdown('SIGINT'))
 }
 
 main().catch((error) => {

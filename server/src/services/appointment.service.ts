@@ -270,8 +270,16 @@ export async function getAppointmentById(appointmentId: string): Promise<Appoint
   return AppointmentModel.findById(appointmentId)
 }
 
+// Wider than the public/availability views' 62-day cap (CLAUDE.md §8 gives admins full
+// historical visibility), but still bounded — an unbounded range on an authenticated route
+// is still a real memory/performance risk, not just a public-abuse one.
+const MAX_ADMIN_QUERY_RANGE_DAYS = 366
+
 /** Admin-only: full detail, including cancelled appointments (CLAUDE.md §8 "preserve
  * historical visibility") — never used by the anonymous public calendar view (Phase 5). */
 export async function listAppointmentsInRange(from: Date, to: Date): Promise<AppointmentDocument[]> {
+  if (to.getTime() - from.getTime() > MAX_ADMIN_QUERY_RANGE_DAYS * 86_400_000) {
+    throw new BookingValidationError(`Admin appointment queries are limited to ${MAX_ADMIN_QUERY_RANGE_DAYS} days at a time.`)
+  }
   return AppointmentModel.find({ startAt: { $lt: to }, endAt: { $gt: from } }).sort({ startAt: 1 })
 }

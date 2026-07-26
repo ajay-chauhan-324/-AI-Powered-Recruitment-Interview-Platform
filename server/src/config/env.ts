@@ -14,6 +14,14 @@ const envSchema = z.object({
   // default) — conflict-safe booking (CLAUDE.md §13) relies on multi-document
   // transactions, which a standalone mongod does not support.
   MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
+  // Number of reverse-proxy hops in front of this server (e.g. 1 behind a single load
+  // balancer/nginx). Controls Express's `trust proxy` setting, which determines how many
+  // X-Forwarded-For hops are trusted when deriving req.ip — used by express-rate-limit to
+  // key limits per real client. Defaults to 0 (trust nothing, use the raw socket address) —
+  // correct for local dev and direct exposure, but MUST be set to match the real deployment
+  // topology in production, since trusting a hop that isn't actually there lets a client
+  // spoof X-Forwarded-For to bypass rate limiting entirely.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(0),
   // Signs the admin session cookie (Phase 9). Generate with:
   // node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
