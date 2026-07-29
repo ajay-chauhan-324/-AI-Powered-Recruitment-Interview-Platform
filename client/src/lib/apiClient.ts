@@ -1,4 +1,9 @@
-const API_BASE = '/api/v1'
+// In local dev, Vite's proxy (vite.config.ts) forwards a relative path to the backend,
+// so VITE_API_URL is unset and this resolves to same-origin. In production the client and
+// server are deployed separately (e.g. Vercel + Render) with no proxy between them, so
+// VITE_API_URL must be set to the deployed backend's origin (e.g. https://api.example.com).
+export const API_ORIGIN = import.meta.env.VITE_API_URL ?? ''
+const API_BASE = `${API_ORIGIN}/api/v1`
 
 export class ApiError extends Error {
   status: number

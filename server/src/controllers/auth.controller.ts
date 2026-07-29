@@ -14,10 +14,14 @@ import {
 } from '../validators/auth.validators.js'
 
 function setSessionCookie(res: Response, token: string) {
+  // 'none' requires 'secure', which is why both are tied to the same production check.
+  // Same-site requests are unaffected by SameSite=None — this only widens which requests
+  // the cookie is sent on, so it's safe for both a same-origin reverse-proxy deployment
+  // and a split-origin one (e.g. Vercel frontend + Render backend), which 'lax' broke.
   res.cookie(USER_SESSION_COOKIE, token, {
     httpOnly: true,
     secure: env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: USER_SESSION_DURATION_MS,
   })
 }

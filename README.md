@@ -249,7 +249,11 @@ Defined and Zod-validated in `server/src/config/env.ts`; see `server/.env.exampl
 | `OPENROUTER_API_KEY` | No | — | Omit to have AI endpoints respond `503` instead of failing to boot |
 | `OPENROUTER_MODEL` | No | a free-tier model | Swap if the configured model is ever deprecated |
 
-The client has no environment variables of its own — Vite's dev server proxies `/api` to the server, so the client always calls same-origin paths in every environment.
+The client has one optional environment variable, read at build time (`client/.env` or the host's build-time env config):
+
+| Variable | Required | Default | Notes |
+|---|---|---|---|
+| `VITE_API_URL` | No | *(empty — same-origin)* | Set to the backend's origin (e.g. `https://your-api.onrender.com`) when the client is deployed separately from the server (e.g. Vercel + Render). Leave unset for local dev (Vite proxies `/api`) or same-origin production deployments. |
 
 ## Installation
 
@@ -333,11 +337,21 @@ Both `tsc -b` (server) and `tsc -b && vite build` (client) must complete with ze
 
 ## Deployment
 
-- The client is a static SPA (`client/dist/`) — deploy it behind any static host or CDN, with a rewrite rule so deep links (e.g. `/jobs/some-slug`, `/manage/:token`) serve `index.html` instead of 404ing.
+- The client is a static SPA (`client/dist/`) — deploy it behind any static host or CDN, with a rewrite rule so deep links (e.g. `/jobs/some-slug`, `/manage/:token`) serve `index.html` instead of 404ing. `client/vercel.json` already provides this rewrite for Vercel.
 - The server needs a Node.js runtime, a reachable MongoDB **replica set** (Atlas or a self-managed one — a standalone instance will not support the transactional booking path), and the required environment variables above.
 - `GET /api/v1/health` reports `200`/`db: connected` or `503`/`db: disconnected` — wire it into your orchestrator's health check.
 - The server already handles `SIGTERM`/`SIGINT` gracefully (drains sockets, then HTTP, then the DB connection, with a 10s force-exit backstop) — no extra shutdown wiring needed for standard container orchestration.
 - No Dockerfile, docker-compose, or CI workflow exists in this repo yet — see Known Limitations.
+
+### Split-origin deployment (e.g. Vercel frontend + Render backend)
+
+The client and server don't have to share an origin, but three things must be configured together or auth/sockets silently break:
+
+1. **Client build**: set `VITE_API_URL` (Vercel project → Settings → Environment Variables) to the deployed backend's origin, e.g. `https://your-api.onrender.com` (no trailing slash, no `/api/v1`). Every REST call and Socket.IO connection reads this at build time.
+2. **Server CORS**: set `CLIENT_ORIGIN` (Render → Environment) to the deployed frontend's exact origin, e.g. `https://your-app.vercel.app`. This drives both the CORS allow-list and the Socket.IO CORS config — a mismatch (wrong scheme, trailing slash, or wrong subdomain) causes every cross-origin request to fail silently in the browser console with a CORS error, not a 4xx from the app itself.
+3. **Reverse proxy hop count**: set `TRUST_PROXY_HOPS=1` on Render (and most other PaaS hosts) so Express resolves the real client IP from `X-Forwarded-For` instead of Render's own edge proxy — without this, `express-rate-limit` buckets every user behind the same IP, and newer versions of the package throw at startup when they detect an untrusted `X-Forwarded-For` header.
+
+Session cookies automatically switch to `SameSite=None; Secure` when `NODE_ENV=production` (see `auth.controller.ts`/`adminAuth.controller.ts`) specifically so they survive this cross-origin setup — `SameSite=Lax` cookies are not sent on cross-site `fetch()` calls at all, which otherwise presents as "login/register appears to succeed but the very next request looks logged out."
 
 ## Troubleshooting
 
@@ -351,6 +365,9 @@ Both `tsc -b` (server) and `tsc -b && vite build` (client) must complete with ze
 | Booking says a slot is unavailable that "should" be free | Check the *recruiter's own* calendar under their Settings — every recruiter has an independent calendar now; confirm working hours/breaks/buffer/minimum-notice actually cover the requested time, and that there isn't an existing interview or (for the legacy admin product only) a blocked period overlapping it once the buffer is applied. |
 | Video call has no picture/audio from the other side | Confirm both participants granted camera/mic permission (check the browser's permission indicator, not just the app's own error banner) and that neither is behind a symmetric/restrictive NAT that STUN alone can't traverse — no TURN relay is configured, see Known Limitations. |
 | `npm test` (server) fails immediately with a transaction-related error | The local MongoDB instance isn't running as a replica set, or isn't running at all — see the `mongod --replSet rs0 ...` instructions in [Development](#development). |
+| "Request failed with status 404" on register/login (or any API call) on a deployed site | The client was built without `VITE_API_URL`, so it called its own frontend origin (e.g. Vercel) instead of the backend — see [Split-origin deployment](#split-origin-deployment-eg-vercel-frontend--render-backend). |
+| Register/login on a deployed site returns 200 but the user appears logged out on the next request | Cross-origin session cookie isn't being sent — confirm `NODE_ENV=production` on the server (switches cookies to `SameSite=None; Secure`) and that `CLIENT_ORIGIN` exactly matches the frontend's origin. |
+| Refreshing or deep-linking to a client-side route (e.g. `/jobs/abc`) 404s on a deployed site | The static host needs a catch-all rewrite to `index.html` — `client/vercel.json` provides this for Vercel; other static hosts need an equivalent rule. |
 | A local MongoDB instance keeps crashing/OOMing | Bound its cache: add `--wiredTigerCacheSizeGB 0.25 --oplogSize 64` to the `mongod` command. |
 
 ## Future Roadmap

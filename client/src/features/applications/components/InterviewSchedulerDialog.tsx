@@ -8,7 +8,7 @@ import {
   type ApplicationRound,
   type CandidateApplication,
 } from '@/features/applications/api/applicationsApi'
-import { ApiConflictError, ApiError } from '@/lib/apiClient'
+import { ApiConflictError, ApiError, API_ORIGIN } from '@/lib/apiClient'
 import { Button } from '@/components/ui/Button'
 
 const SEARCH_DAYS = 14
@@ -93,7 +93,7 @@ export function InterviewSchedulerDialog({ application, round, onClose }: Interv
   // took disappears here automatically, the same way the admin/recruiter calendar already
   // reacts to interview.created without a page reload.
   useEffect(() => {
-    const socket = io('/calendar', { path: '/socket.io' })
+    const socket = io(`${API_ORIGIN}/calendar`, { path: '/socket.io' })
     function refresh() {
       queryClient.invalidateQueries({ queryKey: availabilityKey })
     }

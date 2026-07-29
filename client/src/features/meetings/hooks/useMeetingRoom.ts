@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { io, type Socket } from 'socket.io-client'
+import { API_ORIGIN } from '@/lib/apiClient'
 
 export type MeetingConnectionStatus =
   | 'connecting'
@@ -192,7 +193,10 @@ export function useMeetingRoom(meetingId: string, myRole: MeetingRole | null) {
   useEffect(() => {
     if (!myRole) return
     let cancelled = false
-    const socket = io('/meeting', { path: '/socket.io' })
+    // withCredentials is required (not just fetch's credentials:'include') for the session
+    // cookie to reach the handshake cross-origin — meetingNamespace.ts authenticates by
+    // reading that cookie directly off the handshake request.
+    const socket = io(`${API_ORIGIN}/meeting`, { path: '/socket.io', withCredentials: true })
     socketRef.current = socket
 
     socket.on('connect', () => {

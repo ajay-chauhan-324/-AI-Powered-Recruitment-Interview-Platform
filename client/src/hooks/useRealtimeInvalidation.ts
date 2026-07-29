@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useQueryClient, type QueryKey } from '@tanstack/react-query'
 import { io } from 'socket.io-client'
+import { API_ORIGIN } from '@/lib/apiClient'
 
 const EVENT_NAMES = ['interview.created', 'interview.updated', 'interview.cancelled', 'availability.changed'] as const
 
@@ -28,7 +29,7 @@ export function useRealtimeInvalidation(queryKeys: QueryKey[]): void {
   const keysDependency = JSON.stringify(queryKeys)
 
   useEffect(() => {
-    const socket = io('/calendar', { path: '/socket.io' })
+    const socket = io(`${API_ORIGIN}/calendar`, { path: '/socket.io' })
 
     function invalidateAll() {
       for (const key of queryKeys) {

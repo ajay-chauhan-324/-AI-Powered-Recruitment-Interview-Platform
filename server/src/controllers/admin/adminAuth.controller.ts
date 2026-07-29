@@ -13,10 +13,12 @@ const loginSchema = z.object({
 })
 
 function setSessionCookie(res: Response, token: string) {
+  // See auth.controller.ts's setSessionCookie for why 'none'/'secure' are tied together
+  // and gated on production rather than a separate flag.
   res.cookie(ADMIN_SESSION_COOKIE, token, {
     httpOnly: true,
     secure: env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: ADMIN_SESSION_DURATION_MS,
   })
 }
