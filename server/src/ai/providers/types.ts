@@ -54,3 +54,18 @@ export class AiProviderNotConfiguredError extends AiProviderError {
     this.name = 'AiProviderNotConfiguredError'
   }
 }
+
+/** Thrown specifically for a 429 rate-limit response (e.g. OpenRouter's free-model daily
+ * cap) — kept distinct from a generic AiProviderError so the client can tell "the assistant
+ * is temporarily out of quota, try again after this time" apart from a genuine provider
+ * outage, instead of collapsing both into the same unhelpful message. `resetAt` is best-
+ * effort — omitted if the provider's response didn't include a parseable reset time. */
+export class AiProviderRateLimitedError extends AiProviderError {
+  readonly resetAt: Date | null
+
+  constructor(message: string, resetAt: Date | null = null) {
+    super(message)
+    this.name = 'AiProviderRateLimitedError'
+    this.resetAt = resetAt
+  }
+}

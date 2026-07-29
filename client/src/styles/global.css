@@ -13,6 +13,9 @@
     box-sizing: border-box;
   }
 
+  /* Dark-mode default: tokens.css's :root[data-theme="dark"] / prefers-color-scheme
+     overrides set color-scheme: dark themselves (unlayered, so they win over this base-layer
+     default regardless of source order) — this is just the light fallback. */
   html {
     color-scheme: light;
   }
@@ -28,9 +31,12 @@
     text-rendering: optimizeLegibility;
   }
 
+  /* Fixed-viewport pages (the Time Canvas, admin calendar) size themselves explicitly with
+     h-dvh and manage their own internal overflow-y-auto region — #root itself must stay a
+     normal, growable block so document-flow pages (landing, dashboard, settings, etc.) can
+     scroll past one screen instead of being clipped. */
   #root {
-    height: 100dvh;
-    overflow: hidden;
+    min-height: 100dvh;
   }
 
   ::selection {
@@ -111,6 +117,54 @@
 
   .seal-in {
     animation: seal-in 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  /* Shared entrance/exit for every Radix popover-family component (dropdown menu,
+     tooltip, select) — referenced via Tailwind's arbitrary animate-[...] syntax gated on
+     Radix's own data-state attribute, e.g. data-[state=open]:animate-[popover-in_140ms_ease-out].
+     One definition, reused everywhere, so every menu in the app opens/closes identically. */
+  @keyframes popover-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(-2px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  @keyframes popover-out {
+    from {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: scale(0.96) translateY(-2px);
+    }
+  }
+
+  /* Radix Dialog overlay + content — a restrained fade/scale, never a bouncy overshoot
+     (that's reserved for the confirmation seal above). */
+  @keyframes dialog-overlay-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes dialog-content-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

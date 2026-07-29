@@ -6,6 +6,7 @@ import {
   type AvailabilityChangedPayload,
   type InterviewEventPayload,
 } from '../events/interviewEvents.js'
+import { initMeetingNamespace } from './meetingNamespace.js'
 
 /**
  * Real-time sync. Broadcasts to every connected client on the `/calendar` namespace rather
@@ -32,6 +33,8 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
   interviewEvents.on('interview.updated', (payload: InterviewEventPayload) => broadcast('interview.updated', payload))
   interviewEvents.on('interview.cancelled', (payload: InterviewEventPayload) => broadcast('interview.cancelled', payload))
   interviewEvents.on('availability.changed', (payload: AvailabilityChangedPayload) => broadcast('availability.changed', payload))
+
+  initMeetingNamespace(io)
 
   return io
 }

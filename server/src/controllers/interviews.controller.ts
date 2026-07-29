@@ -21,9 +21,10 @@ function toPublicJson(interview: InterviewDocument) {
   }
 }
 
-/** Only reachable by whoever holds the raw manage token (proof of ownership) — safe to
+/** Only reachable by whoever holds the raw manage token (proof of ownership), or an
+ * authenticated user viewing their own interview (myInterviews.controller.ts) — safe to
  * include full detail here, unlike the anonymous public calendar view. */
-function toOwnerJson(interview: InterviewDocument) {
+export function toOwnerJson(interview: InterviewDocument) {
   return {
     id: interview._id.toString(),
     title: interview.title,
@@ -31,7 +32,11 @@ function toOwnerJson(interview: InterviewDocument) {
     interviewType: interview.interviewType,
     round: interview.round,
     locationType: interview.locationType,
+    meetingType: interview.meetingType,
     meetingUrl: interview.meetingUrl,
+    meeting: interview.meeting
+      ? { status: interview.meeting.status, startedAt: interview.meeting.startedAt, endedAt: interview.meeting.endedAt }
+      : null,
     address: interview.address,
     interviewerName: interview.interviewerName,
     candidateName: interview.candidateName,
@@ -53,7 +58,9 @@ function toOwnerJson(interview: InterviewDocument) {
 export async function postInterview(req: Request, res: Response, next: NextFunction) {
   try {
     const input = publicCreateInterviewInputSchema.parse(req.body)
-    const { interview, manageToken } = await createInterview({ ...input, source: 'public' })
+    // req.user is only ever set by attachUserIfPresent from a verified session cookie
+    // (interviews.route.ts) — never from anything in the request body.
+    const { interview, manageToken } = await createInterview({ ...input, source: 'public' }, req.user?.userId)
     res.status(201).json({ interview: toPublicJson(interview), manageToken })
   } catch (error) {
     next(error)

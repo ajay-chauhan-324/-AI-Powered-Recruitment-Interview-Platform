@@ -3,7 +3,7 @@ import { ZodError } from 'zod'
 import { env } from '../config/env.js'
 import { BookingValidationError, NotFoundError, SlotConflictError } from '../services/booking.errors.js'
 import { ScheduleNotConfiguredError } from '../services/availability.service.js'
-import { AiProviderError, AiProviderNotConfiguredError } from '../ai/providers/types.js'
+import { AiProviderError, AiProviderNotConfiguredError, AiProviderRateLimitedError } from '../ai/providers/types.js'
 
 export class AppError extends Error {
   readonly statusCode: number
@@ -58,10 +58,17 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     return
   }
 
-  // Must come before the AiProviderError check below — it's a subclass, and instanceof
-  // would otherwise match the broader (wrong) branch first.
+  // Both must come before the AiProviderError check below — each is a subclass, and
+  // instanceof would otherwise match the broader (wrong) branch first.
   if (err instanceof AiProviderNotConfiguredError) {
     res.status(503).json({ error: { code: 'AI_NOT_CONFIGURED', message: err.message } })
+    return
+  }
+
+  if (err instanceof AiProviderRateLimitedError) {
+    res.status(503).json({
+      error: { code: 'AI_RATE_LIMITED', message: err.message, resetAt: err.resetAt ? err.resetAt.toISOString() : null },
+    })
     return
   }
 

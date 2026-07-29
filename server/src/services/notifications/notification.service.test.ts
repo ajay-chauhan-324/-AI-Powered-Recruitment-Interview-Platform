@@ -89,13 +89,13 @@ describe('notification.service', () => {
     assert.match(message.body, /has been cancelled/i)
   })
 
-  it('sendReminderEmail identifies itself as a reminder', async () => {
+  it('sendReminderEmail identifies itself as a reminder and states the minutes remaining', async () => {
     const transport = new CapturingTransport()
-    await sendReminderEmail(baseContext, transport)
+    await sendReminderEmail(baseContext, 30, transport)
 
     const message = transport.sent[0]
     assert.ok(message)
     assert.match(message.subject, /reminder/i)
-    assert.match(message.body, /reminder about your upcoming interview/i)
+    assert.match(message.body, /starts in about 30 minutes/i)
   })
 })

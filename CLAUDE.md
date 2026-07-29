@@ -1303,3 +1303,610 @@ Do not implement the entire application in one uncontrolled operation.
 Preserve the approved architecture and the "The Ledger — Intelligent Time Canvas" design throughout the project.
 
 Begin now.
+
+==================================================
+36. SECOND PIVOT: RECRUITMENT PLATFORM
+==================================================
+
+The product has evolved a second time, beyond the interview-scheduling
+pivot in section "PRODUCT PIVOT" above: it is now **The Ledger — a full
+recruitment platform**. Recruiters post jobs with an ordered interview
+pipeline; candidates apply with a resume; an AI scores the application
+against the job (ATS); recruiters shortlist and progress candidates round
+by round; each round is booked by the candidate directly (not by AI) against
+the same fixed-schedule `AvailabilityService` from section 12; each booked
+interview automatically gets an in-platform WebRTC video Meeting Room.
+
+Everything in sections 0-35 remains the operative engineering standard
+(source-of-truth hierarchy, phase gates, availability engine, concurrency
+rules, timezone rules, AI security, accessibility, error handling). This
+section documents what was actually built on top of that standard, and is
+the part every future session should read first to understand the current
+system without re-deriving it from source.
+
+--------------------------------------------------
+36.1 BUSINESS RULES (as implemented)
+--------------------------------------------------
+
+* ~~All interviews run on ONE fixed schedule~~ — **SUPERSEDED, see §37.**
+  Every recruiter now owns their own `ScheduleConfig` (working hours,
+  breaks, timezone, buffer/notice/window), freely configurable, no fixed
+  pattern. The Asia/Kolkata 10:00-13:00/15:00-19:00 pattern described here
+  survives ONLY as the legacy admin/guest booking product's global
+  singleton calendar (`server/src/config/scheduleDefaults.ts`,
+  `ensureFixedScheduleConfig()`) — a deliberate, still-current constraint
+  for that one legacy surface, never for recruitment-pipeline bookings.
+* Profile completion is NOT required to apply for a job. This was built,
+  then explicitly reversed at product request. Do not reintroduce a
+  profile-completeness gate on the Apply button or the application-creation
+  endpoint without being asked again.
+* A candidate can never see or book a round out of sequence. Round
+  progression is a strict state machine per round:
+  `locked → ready_to_book → scheduled → passed | failed`. Shortlisting
+  unlocks round 1. Booking a `ready_to_book` round moves it to `scheduled`
+  and creates a real `Interview`. Recording an outcome of `passed` unlocks
+  the next round (or marks the application `selected` if it was the last
+  round); `failed` marks the whole application `rejected` immediately.
+* A job's `pipeline` is snapshotted onto `Application.rounds` at apply time.
+  Editing a job's pipeline afterward never retroactively changes an
+  already-submitted application's rounds.
+* ATS score/analysis is recruiter-only. A candidate never sees their own
+  score through the UI or the AI assistant. ATS scoring is best-effort — a
+  failed or unavailable AI provider never blocks application creation.
+* ~~The AI assistant has NO tool to create a new interview~~ —
+  **SUPERSEDED, see §37.** The candidate AI is now the PRIMARY booking
+  workflow (`book_interview_round` + `find_bookable_interview_rounds` in
+  `ai/tools.ts`), calling the exact same `scheduleApplicationInterview` →
+  `createInterview` service chain `InterviewSchedulerDialog` always called
+  — still never a second scheduling engine, still transaction-protected,
+  still never inventing a slot outside a real `find_available_slots`
+  result. `InterviewSchedulerDialog` itself still exists as a secondary/
+  debug manual picker, not the primary UX anymore.
+* Every `video`-type interview gets an in-platform meeting automatically at
+  creation (`buildMeetingFields()` in `interview.service.ts`) — there is no
+  code path that creates a video interview without a `meeting` object.
+  `meetingUrl` is always same-origin (`/meeting/:meetingId`), never an
+  external provider link.
+
+--------------------------------------------------
+36.2 INTERVIEW PIPELINE — DATA FLOW
+--------------------------------------------------
+
+`Job.pipeline[]` (recruiter-authored, ordered `PipelineStage`s: type, title,
+duration, default location)
+  → on apply, snapshotted onto `Application.rounds[]` (all `locked`)
+  → recruiter shortlists → round 1 becomes `ready_to_book`
+    (`application.service.ts` → `updateApplicationStatus`, wired to
+    `notifyRoundReady`)
+  → candidate books via `InterviewSchedulerDialog` → round becomes
+    `scheduled`, a real `Interview` document is created and linked via
+    `round.interviewId`
+  → recruiter records outcome (`recordRoundOutcome`) → `passed` unlocks the
+    next round (or finishes the application as `selected`) / `failed`
+    rejects the whole application immediately.
+
+This lives entirely in `server/src/services/application.service.ts`. Do not
+duplicate this state machine anywhere else (e.g. in a controller or in the
+AI tools layer) — every mutation of `rounds[].status` must go through this
+service.
+
+--------------------------------------------------
+36.3 SCHEDULING — WHAT'S REUSED VS. NEW
+--------------------------------------------------
+
+`AvailabilityService`, `ScheduleConfig`, `BlockedSlot`, `BookingLock`, and
+the transaction-protected create/reschedule/cancel paths in
+`interview.service.ts` are UNCHANGED from the original interview-scheduling
+pivot — they are generic, correct, and already tested. The recruitment
+pipeline's per-round booking (`InterviewSchedulerDialog` on the client,
+`scheduleApplicationInterview` in `application.service.ts` on the server)
+is a thin new caller of that same existing engine, not a parallel
+implementation. If a scheduling bug is found, fix it in
+`AvailabilityService`/`interview.service.ts` — never patch around it in the
+application-round layer.
+
+--------------------------------------------------
+36.4 MEETING SYSTEM
+--------------------------------------------------
+
+* `Interview.meeting`: `{ meetingId, status: not_started|waiting|
+  in_progress|ended, participants: [{ role, joinedAt, leftAt }] }`.
+  Generated by `generateMeetingId()`/`buildMeetingFields()` in
+  `interview.service.ts` at interview-creation time for every `video`
+  interview.
+* Client: `client/src/features/meetings/` — `MeetingRoomPage.tsx`,
+  `useMeetingRoom.ts` (the WebRTC + Socket.IO state machine), `VideoTile.tsx`.
+* Signaling: `/meeting` Socket.IO namespace (`server/src/sockets/
+  meetingNamespace.ts`) — authenticated via the same session cookie as
+  REST, one room per `meetingId`, ownership re-verified server-side (the
+  connecting user must actually be the candidate or interviewer on that
+  interview) before joining the room.
+* Protocol invariant: whichever peer was ALREADY in the room when the
+  second peer joins (`meeting:peer-joined`) is the one that creates the SDP
+  offer — enforced by `hasOfferedRef` in `useMeetingRoom.ts`, which is also
+  reset to `false` on `meeting:peer-left` so a rejoin re-negotiates cleanly
+  instead of silently failing to reconnect.
+* Screen share replaces the outgoing video track in place
+  (`RTCRtpSender.replaceTrack`) rather than renegotiating the whole
+  connection; `stopScreenShare()` restores the camera track and is called
+  both from the toggle button and from the browser's native "Stop sharing"
+  control (`track.onended`).
+* STUN only, no TURN — calls behind restrictive/symmetric NATs may fail to
+  connect. This is a known limitation (see README), not a bug to silently
+  "fix" by adding a TURN dependency without being asked.
+* Raise Hand and Recording are intentionally UI-only stubs (future-ready,
+  not functional). Do not wire fake functionality behind them; do not
+  remove them either — they mark deliberate scope boundaries.
+
+--------------------------------------------------
+36.5 AI TOOLS (current set)
+--------------------------------------------------
+
+Both AI surfaces (`/my/ai` candidate, `/recruiter/ai` recruiter) share one
+conversation loop (`server/src/ai/conversation.service.ts`,
+`MAX_TOOL_ITERATIONS = 6`) and one tool file (`server/src/ai/tools.ts`).
+**SUPERSEDED — see §37 for the current tool set.** As of §37, the candidate
+AI DOES have real booking tools (`find_bookable_interview_rounds`,
+`book_interview_round`); the "no create_interview tool" statement above no
+longer holds. Every tool call still re-derives authorization server-side
+from the session, never from a model-supplied id claim, and every response
+is still built from a real query — the system prompt still instructs the
+model never to invent data it doesn't have a tool result for, and to
+respond in plain text only (no Markdown/asterisks/headings — a recurring
+fight with the configured free-tier model that is mitigated, not 100%
+solved; see §37).
+
+--------------------------------------------------
+36.6 CODING / FOLDER / NAMING CONVENTIONS (observed, keep following)
+--------------------------------------------------
+
+* Client feature folders: `features/<domain>/{api,components,hooks,pages}`.
+  `api/` files are typed fetch wrappers only — no business logic. Shared
+  cross-feature types are re-exported from the owning feature's `api` file
+  (e.g. `recruiterApi.ts` imports `MeetingInfo`/`MeetingType` from
+  `booking/api/bookingApi.ts` rather than redefining them).
+  Populated-vs-unpopulated Mongoose reference fields
+  (`application.jobId`, `application.resumeId`) require a small
+  `xIdString()` helper (see `jobIdString`/`resumeIdString` in
+  `recruiterApplications.controller.ts`) because `.toString()` on a
+  populated document returns a debug string, not a hex id — reach for the
+  existing pattern rather than re-deriving it when adding a new populated
+  field.
+* Server: routes are wiring only; controllers parse/validate input and
+  shape the response; all business logic is in `services/`. Every request
+  body is Zod-validated in `validators/`.
+* Query keys: TanStack Query keys are deliberately SHARED across pages that
+  need the same data (e.g. `['recruiter-applications']` used by the
+  recruiter dashboard, candidates list, and AI-insight views) so they
+  dedupe automatically and never drift out of sync — do not give each page
+  its own key "for isolation" when they're conceptually the same fetch.
+* `lucide-react` has no brand icons (no `Github`, `Linkedin`, etc.) —
+  compiles fine, breaks at runtime/build. Use a generic icon
+  (`ExternalLink`, `Globe`) for external-profile links instead.
+
+--------------------------------------------------
+36.7 TESTING STRATEGY
+--------------------------------------------------
+
+Server: `node:test` + `assert`, run via `npm test` in `server/`, requires a
+local MongoDB **replica set** (conflict-safe booking uses multi-document
+transactions — a standalone `mongod` cannot run these tests). Tests run
+with `--test-concurrency=1` and share one database; new tests must use
+fixture data/time windows distinct enough not to collide with existing
+tests rather than relying on parallel isolation. Client has no automated
+test suite yet — verification there is `tsc -b`, `oxlint`, `vite build`,
+and manual browser checks.
+
+--------------------------------------------------
+36.8 DEPLOYMENT NOTES
+--------------------------------------------------
+
+* Server needs a reachable MongoDB **replica set** in production (Atlas or
+  self-managed) — a standalone instance breaks the transactional booking
+  path silently at runtime, not at build time, so this is easy to miss
+  until the first double-booking race actually occurs.
+* `GET /api/v1/health` is wired for orchestrator health checks (`200` db
+  connected / `503` db disconnected). Graceful shutdown (`SIGTERM`/
+  `SIGINT`) already drains sockets → HTTP → DB with a 10s force-exit
+  backstop — do not add a second shutdown handler.
+* No Dockerfile/docker-compose/CI exists yet (see README "Future Roadmap").
+
+--------------------------------------------------
+36.9 KNOWN CONSTRAINTS / FUTURE EXTENSION POINTS
+--------------------------------------------------
+
+* No TURN relay for the Meeting Room (extension point: add one behind an
+  env-var-gated config in the same `useMeetingRoom.ts` ICE-server list).
+* Meeting Room is strictly 1:1 (extension point: panel/group interviews
+  would need a mesh or SFU redesign of `meetingNamespace.ts` and
+  `useMeetingRoom.ts` — non-trivial, do not attempt as a small patch).
+* `locationType`/`meetingType` schema already has an `offline` enum value
+  reserved for future use — no UI or logic consumes it yet; do not assume
+  it is wired up.
+* Admin (`/admin/*`) is a separate, legacy single-tenant system predating
+  the recruiter multi-tenant model — kept intentionally separate for
+  generic/non-recruitment booking use cases, not a bug to "merge" into the
+  recruiter workspace without being asked.
+* No password-reset flow for either auth system (self-service or admin).
+* Candidate profile completion is deliberately optional everywhere — see
+  36.1. Any future "encourage profile completion" feature must remain
+  non-blocking (nudge UI only, never a gate on Apply).
+
+==================================================
+37. THIRD PIVOT: PER-RECRUITER CALENDARS + AI-DRIVEN BOOKING
+==================================================
+
+Two further, deliberate product decisions were made after §36 was written,
+neither reflected in §36's text above (now marked SUPERSEDED inline where
+it was directly contradicted). This section is the current source of truth
+for scheduling/booking; §36 remains correct for pipeline/round-progression/
+meeting-room mechanics, which this pivot did not touch.
+
+--------------------------------------------------
+37.1 PER-RECRUITER CALENDARS (replaces the fixed IST schedule for the
+recruitment pipeline)
+--------------------------------------------------
+
+* `ScheduleConfig` now has an optional `recruiterId` (sparse unique index)
+  alongside the original `singleton` (also now sparse unique, was a plain
+  unique index — this required a `syncIndexes()` call at boot, see 37.3,
+  since Mongoose's autoIndex never repairs an already-existing index's
+  options on a pre-existing database). A document has exactly one of the
+  two keys, never both, never neither — `scheduleConfig.service.ts` has two
+  parallel families of functions (`getScheduleConfig`/`ensureFixedScheduleConfig`/
+  `upsertScheduleConfig` for the legacy singleton; `getOrCreateScheduleConfigForRecruiter`/
+  `getScheduleConfigForRecruiter`/`upsertScheduleConfigForRecruiter` for a
+  recruiter) — never conflate them.
+* A recruiter's own calendar is auto-seeded on first read (same starting
+  values as the old fixed pattern — Asia/Kolkata, Mon-Fri, 10-13/15-19 —
+  purely as a reasonable default, NOT an enforced policy) and freely
+  editable thereafter via `PUT /api/v1/recruiter/schedule`
+  (`recruiterScheduleConfigInputSchema` in `schedule.validators.ts` — no
+  fixed-pattern `.refine()`s, unlike the legacy admin schema it sits next
+  to in the same file). UI: `RecruiterSettingsPage.tsx`'s "Interview
+  calendar" section.
+* `AvailabilityService`'s every exported function
+  (`findAvailableSlots`/`isSlotAvailable`/`findNearestAlternatives`/
+  `getBufferMinutesMs`/`getEffectiveTimezone`) takes an optional
+  `recruiterId` — omitted, it resolves the legacy singleton (unchanged
+  behavior for the legacy admin/guest product); provided, it resolves that
+  recruiter's own config. `Interview` gained a denormalized `recruiterId`
+  (nullable — null for legacy/generic bookings) so `createInterview`/
+  `rescheduleInterview`'s transactional conflict-detection queries can
+  scope by it: recruiter A's bookings can never block, or be blocked by,
+  recruiter B's slots at the same instant. `BlockedSlot`/`BookingLock`
+  were deliberately left global/unscoped — recruiters have no per-recruiter
+  "block time" feature (that would be a real feature addition, not a bug
+  fix; the legacy admin blocked-time tool is still intentionally global).
+* `application.service.ts`'s `scheduleApplicationInterview` resolves the
+  booking round's job → `recruiterId` → that recruiter's own
+  `ScheduleConfig`, and uses ITS timezone for the created interview — the
+  candidate's own browser timezone is still never trusted for the booking
+  itself (matches §14's "never trust client time"), it's just resolved
+  from the correct calendar now instead of a hardcoded constant.
+* Migration: `npm run backfill:interview-recruiter-id`
+  (`scripts/backfill-interview-recruiter-id.ts`) sets `recruiterId` on any
+  interview created before this pivot (jobId set, recruiterId still null) —
+  run once before deploying this change to a database with pre-existing
+  recruitment-pipeline interviews, or their conflict-scoping silently
+  falls back to the legacy-calendar bucket.
+* **Not touched, and should not be, without a fresh product decision**:
+  the legacy admin singleton calendar, `BlockedSlot`, `BookingLock`, the
+  legacy public `/interviews` POST route, and the guest/admin AI
+  `schedule_interview` tool — all still global, all still exactly as §36
+  described them. This pivot only ever added a NEW per-recruiter path
+  alongside the old one; it never modified the old one.
+
+--------------------------------------------------
+37.2 AI-DRIVEN BOOKING (reverses §36.1/§36.5's "AI never books")
+--------------------------------------------------
+
+This is an explicit, deliberate reversal of a prior deliberate decision —
+both the original "AI never books" call and this reversal were correct
+given what the product was at the time each was made. If asked to touch
+booking again, THIS is the current, correct behavior; do not "restore" the
+old restriction as if it were still in effect.
+
+* `ai/tools.ts` (`contexts: ['user']`): `find_bookable_interview_rounds`
+  (no args — scans every one of the candidate's applications for a round
+  currently `ready_to_book`, across every job/recruiter; returns
+  applicationId + job/company/round info) and `book_interview_round`
+  (`{ applicationId?, startAt }` — applicationId optional, falls back to
+  the conversation's `activeApplicationId` hint, see below). Both call the
+  exact same services the manual dialog / REST routes call
+  (`listApplicationsForCandidate`, `scheduleApplicationInterview`) — no
+  parallel booking logic anywhere in the AI layer.
+* `check_availability`/`find_available_slots` (already existed, `contexts:
+  ['guest','admin','user']`) now resolve the correct recruiter's calendar
+  via `applicationId` (required for `'user'` mode, either as an explicit
+  arg or the `activeApplicationId` fallback) — `resolveRecruiterIdForAvailability`
+  in `tools.ts`. Their result now also returns the effective `timezone`, so
+  the model is never left assuming one.
+* `AiContext`'s `'user'` variant gained an optional `activeApplicationId` —
+  a pure UX hint (candidate arrived via a "Book with AI" link on a specific
+  application), threaded through `aiChatInputSchema` →
+  `userAi.controller.ts` → `AiContext` → the booking/availability tools'
+  fallback resolution. It is NEVER trusted as authorization — every tool
+  still re-verifies the candidate owns that application via
+  `getApplicationForCandidate` regardless of whether the hint or an
+  explicit arg supplied the id.
+* The candidate system prompt (`conversation.service.ts`'s
+  `SCOPE_RULES.user`) was rewritten to instruct the model to: discover the
+  round (hint or `find_bookable_interview_rounds`, asking the candidate to
+  disambiguate if more than one round is ready), check real availability,
+  resolve natural-language time requests itself against the ACTUAL
+  returned slots ("tomorrow morning", "after 3pm", "earliest", "Monday
+  after 4" — never invented), present 2-5 options conversationally, book
+  immediately on confirmation with no UI hand-off, and on a
+  `SlotConflictError` treat it as a normal "just took it, here are
+  alternatives" turn, never a failure message.
+* Client: `AiAssistantPage.tsx` is now the PRIMARY booking entry point.
+  `ApplicationsPage.tsx`'s "Book Interview" button now routes to
+  `/ai?applicationId=<id>`, which seeds a natural opening message
+  ("I'd like to book my interview.") and carries the id as the
+  `activeApplicationId` hint on every request from then on.
+  `InterviewSchedulerDialog.tsx` (the manual slot-picker) still exists,
+  reachable only via a small secondary "Pick a time manually" text link —
+  kept for debugging/fallback per explicit product instruction, not
+  deleted. Booking confirmations render as a compact card
+  (`BookingConfirmationCard`) under the chat message that produced them,
+  not a new full dialog — reuses `formatClockInTimeZone`, links to My
+  Interviews for reschedule/cancel rather than duplicating that UI in chat.
+* **Known, accepted limitation**: the configured free-tier OpenRouter model
+  (`nvidia/nemotron-3-ultra-550b-a55b:free`) sometimes emits literal
+  `**bold**` Markdown despite an explicit, emphatic "plain text only, this
+  bubble does not render Markdown" system-prompt rule, placed as the FIRST
+  rule and given a wrong/right example. This measurably reduced but did not
+  eliminate the behavior in live testing — treat as a model-compliance
+  limit, not a bug to keep chasing with prompt tweaks alone; a stronger fix
+  would mean either a different/larger model or a post-processing strip of
+  Markdown syntax from replies before they reach the client.
+* **Known, accepted limitation**: the configured free OpenRouter tier caps
+  at 50 requests/day without credits — a real, user-visible failure mode
+  (`AI_RATE_LIMITED`, see 38.4), not a code bug; heavy manual/automated
+  testing against the live provider will exhaust it.
+
+--------------------------------------------------
+37.3 INDEX-SYNC-AT-BOOT PATTERN (established this pivot, now a standing
+practice)
+--------------------------------------------------
+
+`server/src/server.ts`'s boot sequence calls `Model.syncIndexes()` (not
+just relying on Mongoose's default autoIndex) for every model whose index
+shape changed in a given pass — currently `ScheduleConfig`, `User`,
+`Interview`, `Application`, `Job`. This is necessary, not defensive
+paranoia: Mongoose's autoIndex only ever ADDS an index missing from the
+current schema; it never detects or repairs an already-existing index
+whose options (unique, sparse, compound fields) no longer match, which
+silently breaks in two ways — a stale non-sparse unique index throws
+spurious duplicate-key errors on legitimate new documents (this actually
+happened, twice, during this pivot and the next production-readiness
+pass), or a stale single-field index just quietly never gets the perf
+benefit of a newer compound one. **How to apply**: any future schema
+change that alters an index's shape (not just adds a brand-new one) must
+add that model to this `Promise.all([...])` in `server.ts`, or the fix
+will work on a fresh database and silently not apply to any existing one.
+
+==================================================
+38. PRODUCTION READINESS AUDIT & HARDENING PASS
+==================================================
+
+A full audit (5 parallel research passes covering dead code/folder
+structure, security, database/indexes/transactions, AI/interview/socket/
+WebRTC architecture, and client page-by-page correctness) plus live
+QA testing was performed, followed by a fix pass. This section is the
+record of what was found and fixed — read it before assuming something is
+broken (it may already be fixed) or before re-auditing from scratch (the
+findings below are current as of this pass; re-verify rather than trust
+blindly if significant time has passed).
+
+--------------------------------------------------
+38.1 BUGS FOUND AND FIXED
+--------------------------------------------------
+
+* **DST bug, `availability.service.ts`'s `resolveLocalMinutesToUtcInterval`**
+  — confirmed by direct reproduction: computing working hours as
+  `startOf('day').plus({ minutes: N })` used Luxon's sub-day-unit elapsed-
+  DURATION arithmetic, not wall-clock time, so on a real DST transition day
+  every slot for a DST-observing recruiter timezone landed an hour off.
+  Fixed via `.plus({ days })` (Luxon's day-and-above units ARE calendar-
+  aware) + `.set({ hour, minute })` (assigns wall-clock time directly,
+  correctly zone-resolved). Regression test: `availability.service.test.ts`
+  reproduces the exact 2024-03-10 America/New_York spring-forward date.
+  **How to apply**: never resolve a "minutes since local midnight" value
+  via `.plus({ minutes })` from a zoned `startOf('day')` — always resolve
+  via `.set({ hour, minute })` on the target calendar day.
+* **`RecruiterApplicationDetailPage.tsx`**: (a) hung on the loading
+  skeleton forever if the fetch genuinely errored (`isLoading || !application`
+  never becomes false-and-shows-something on a fetch error) — fixed by
+  checking `isError` first, with a retry button. (b) The Notes textarea
+  could show a DIFFERENT, previously-viewed candidate's notes after
+  client-side navigation between two applications' detail pages, because
+  `notesInitialized` was a plain boolean, never re-keyed to which
+  application it was initialized for — fixed by tracking
+  `notesInitializedForId` instead and re-initializing whenever
+  `application.id` changes. **How to apply**: any page whose state is
+  seeded from route-param-driven query data, where React Router can keep
+  the component instance mounted across a param change, needs to re-key
+  its "have I initialized this yet" flag to the actual identity of the
+  data, not just "has this ever run."
+* **`useMeetingRoom.ts`**: `pendingCandidatesRef` was never cleared on
+  `meeting:peer-left` (only `hasOfferedRef` was) — stale ICE candidates
+  from a torn-down connection could get replayed onto the NEW
+  `RTCPeerConnection` created on rejoin. `createOffer`/`handleOffer`/
+  `handleAnswer`/`handleIceCandidate` are all invoked as bare
+  `void fn(...)` with no `.catch` anywhere they're called — added
+  try/catch inside each so a camera/mic re-denial or a stale/invalid SDP
+  can never surface as an unhandled promise rejection; each sets
+  `errorMessage`/`connectionStatus` appropriately instead (a single bad ICE
+  candidate is swallowed silently — not fatal to the connection, matches
+  WebRTC norms). `leaveMeeting()` (the explicit "Leave" button) didn't stop
+  `screenStreamRef` tracks, unlike the unmount-effect cleanup — fixed for
+  consistency (today's only caller unmounts immediately after anyway, so
+  this was latent, not actively broken).
+* **Security**: `POST /auth/change-password` had no rate limit, unlike
+  every sibling credential-adjacent endpoint (login, register) — added one
+  (10/15min, matches login's). Resume hard-delete
+  (`resume.service.ts`'s `deleteResumeRecord`) had no check for whether an
+  `Application.resumeId` still referenced it — added an `ApplicationModel.exists()`
+  guard, returns `409 RESUME_IN_USE` instead of silently orphaning the
+  reference (client: `ResumeManager.tsx`'s delete mutation gained an
+  `onError` — it had none before, so this new failure mode would otherwise
+  have been silent).
+* **Database**: added indexes that were missing for actual query patterns
+  — `Interview['meeting.meetingId']` (sparse; every Meeting Room join was a
+  full collection scan before this), `Application{jobId,'atsAnalysis.score'}`
+  (the dominant recruiter application-ranking sort), `Job{status,companyId,publishedAt}`
+  (the public company-profile job list), `Interview{candidateEmail,startAt}`
+  (was single-field, candidate lookups sort by startAt too). Removed
+  `User.accountType`'s index — verified zero queries anywhere filter by it
+  (every accountType check reads the field off an already-`findById`'d
+  document, never queries by it). `application.service.ts`'s
+  `listApplicationsForRecruiter` now pushes `.limit()` into the actual
+  Mongoose query when there's no skill filter (skill matching happens in
+  JS against populated candidate profiles, so limiting before that filter
+  runs would risk cutting off real matches — only safe to push down when
+  there's no skill filter to apply afterward).
+* **Dead code removed** (verified zero live references via reachability
+  tracing from `main.tsx`/`app.ts`, not just a naive grep): `app/CalendarApp.tsx`,
+  `features/ai/components/AiRibbon.tsx`, `components/layout/AppShell.tsx`,
+  `components/layout/Header.tsx`, `features/calendar/components/TimeCanvas.tsx`,
+  `features/calendar/hooks/{useCalendarView,useCalendarRealtime}.ts`,
+  `features/calendar/api/calendarApi.ts`, `features/booking/components/BookingPanel.tsx`
+  — all part of one orphaned "old Time Canvas app" cluster, unreachable
+  since before the recruitment pivot. `client/src/lib/dateContext.ts` was
+  trimmed to only the functions its three real callers
+  (`UserCalendarPage`/`AdminCalendarPage`/`RecruiterCalendarPage`) actually
+  use (`getDayRange`/`addPeriod`/`isSameLocalDay`) — `getDateContextLabel`/
+  `getMonthGridCells`/`getWeekRange`/`getMonthGridRange`/`getRangeForZoom`
+  were dead multi-zoom-view code with no live caller; `addPeriod`'s
+  signature dropped its unused `zoom` parameter (every real call site
+  always passed `'day'`). `@radix-ui/react-tooltip` (client dependency, zero
+  imports anywhere) was removed. The server's `/api/v1/calendar` route
+  (backing the dead `calendarApi.ts`) was deliberately LEFT IN PLACE — it's
+  a real, working, still-mounted API a future consumer could still use;
+  removing a working backend route with no client caller yet is a product
+  decision, not a dead-code-removal one.
+* **Missing error states** (each page had a working happy path but
+  silently rendered "empty"/stuck-loading on a genuine fetch failure):
+  `useRecruiterApplications.ts` now exposes `isError` (was silently
+  swallowed, propagating the gap to `RecruiterDashboardPage`/
+  `RecruiterCandidatesPage`); `JobsListPage`, `ApplicationsPage`,
+  `RecruiterJobsPage` (list fetch, plus pause/close/duplicate mutations
+  which had no `onError` at all — only publish did), `RecruiterJobApplicationsPage`,
+  `RecruiterCalendarPage`, `RecruiterSettingsPage`'s company-profile section
+  (had none at all, inconsistent with its own "Interview calendar" section
+  60 lines below) all gained a proper error render. `JobDetailPage` no
+  longer conflates a genuine fetch error with a real 404 (separate
+  branches now). `UserCalendarPage` gained a loading indicator (previously
+  rendered a blank grid with no feedback while loading).
+* **Real-time sync gap**: `RecruiterCalendarPage`, `UserCalendarPage`,
+  `InterviewsPage`, `ApplicationsPage`, `AdminCalendarPage`,
+  `AdminCandidatesPage` had NO socket listener at all — only the two
+  public booking surfaces (`TimeCanvas` — since deleted — and
+  `InterviewSchedulerDialog`) got live push updates; everything else relied
+  on React Query's `staleTime`/window-refocus defaults alone. Added one new
+  generic hook, `client/src/hooks/useRealtimeInvalidation.ts` (takes an
+  array of query keys to invalidate on any `interview.*`/`availability.changed`
+  event from the public `/calendar` namespace), and wired it into all six
+  pages above — replaces the deleted single-purpose `useCalendarRealtime`
+  rather than duplicating its socket-connection boilerplate six times.
+* **Cosmetic/consistency**: `tools.ts` had the `interviewType` enum spelled
+  out as a literal string array in three separate places instead of
+  spreading the shared `INTERVIEW_TYPES` constant (the pattern already used
+  for `EMPLOYMENT_TYPES`/`WORKPLACE_TYPES` in the same file) — fixed; a
+  future addition to `INTERVIEW_TYPES` would otherwise silently not reach
+  these tool schemas. One stray `dark:` Tailwind variant in
+  `InterviewSchedulerDialog.tsx` (the only one anywhere in the codebase)
+  followed OS color-scheme preference instead of this app's own
+  `data-theme`-attribute-based toggle (see §36.6-adjacent dark-mode
+  architecture) — removed, matching its sibling dialogs. `SettingsPage.tsx`'s
+  LinkedIn/GitHub/Portfolio inputs gained `type="url"` for native
+  browser-level format feedback (the server already enforced `z.url()`;
+  the client silently accepted anything before submit).
+
+--------------------------------------------------
+38.2 FINDINGS DELIBERATELY NOT "FIXED" (confirmed intentional or too
+risky to patch blindly — do not silently change these without a fresh
+product decision)
+--------------------------------------------------
+
+* Admin's global `BlockedSlot`/booking lock and the admin AI tools having
+  no per-recruiter scoping — this is §36.9's documented "admin is a
+  separate legacy system" design, not a regression. Recruiters have no
+  per-recruiter blocked-time feature at all; adding one is a feature
+  request, not a bug fix.
+* JWT sessions are not server-side revocable — verified live: replaying a
+  captured `user_session` token after logout, OR after a password change,
+  still authenticates successfully until the token's natural 7-day expiry.
+  This is standard stateless-JWT behavior, not a bug; a real fix (a
+  `tokenVersion` field on `User`, checked on every request, incremented on
+  password change) is a legitimate small addition but was judged out of
+  scope for a bug-fix pass — flagged here as a known gap for a future,
+  explicitly-scoped session-hardening task.
+- `application.service.ts`'s `scheduleApplicationInterview`: the interview
+  is created inside its own transaction (via `createInterview`), but the
+  two follow-up writes — linking `interview.jobId`/`applicationId`, and
+  advancing `round.status`/`round.interviewId` on the `Application` — run
+  as two SEPARATE, non-transactional saves after that transaction has
+  already committed. A crash in the narrow window between them could leave
+  a confirmed interview holding a calendar slot with no application link,
+  or an application stuck at `ready_to_book` for a slot that's already
+  taken. A proper fix means threading an external Mongo session into
+  `createInterview` (a public function many other callers use unmodified)
+  — judged too invasive for a bug-fix pass; documented here as a known,
+  narrow, low-probability risk rather than silently reworked.
+* Recruiter portal has no dedicated mobile nav (`RecruiterNav.tsx` relies
+  on horizontal scroll on narrow viewports) — unlike the candidate portal's
+  `MobileTabBar`. Works, just a worse mobile UX than its candidate-side
+  counterpart; a real fix means building a new mobile nav component, which
+  is a UI feature addition, not a bug fix — documented as a recommendation,
+  not implemented.
+* `react-router-dom`'s "RSC Mode CSRF Bypass" advisory (`npm audit`) — this
+  app is a client-only Vite SPA and never uses React Router's RSC data-
+  loading mode, so this advisory's actual attack surface does not apply
+  here. The only available `npm audit fix --force` path is a downgrade,
+  which would be a real, unjustified regression risk for a vulnerability
+  class this app doesn't use — left as-is, documented rather than
+  "fixed" by a risky forced version change.
+
+--------------------------------------------------
+38.3 VERIFICATION PERFORMED (this pass)
+--------------------------------------------------
+
+Server: `tsc -b --noEmit`, `oxlint`, `npm test` (82/82 passing, including a
+new DST regression test), `tsc -b` build — all clean, re-run after every
+group of fixes, not just once at the end. Client: `tsc -b --noEmit`,
+`oxlint`, `vite build` — all clean, likewise re-run incrementally. Live QA
+(not just code review): register/login/logout/session-invalidation
+behavior, login/register/change-password rate limiting, resume upload
+size/mimetype rejection, resume orphan-delete guard (both the "should
+succeed" and "should be blocked" cases), the full apply → shortlist →
+AI-driven book → reschedule → cancel flow against the REAL OpenRouter
+provider (not just scripted tests) including natural-language slot
+selection ("the first one"), and MongoDB index verification (confirmed the
+exact expected index set on a live database both before and after
+`syncIndexes()`). **Not performed, and not falsely claimed as tested**:
+real camera/microphone hardware verification with two simultaneous human
+participants, and screenshot/GIF capture — no browser-automation or
+screenshot tool was available in this environment; the WebRTC/Meeting Room
+code path was verified by full code review plus the live API/socket-level
+flows above, not a live two-person call.
+
+--------------------------------------------------
+38.4 THE AI_RATE_LIMITED ERROR (if you see this again)
+--------------------------------------------------
+
+`server/src/ai/providers/types.ts`'s `AiProviderRateLimitedError` (a
+`AiProviderError` subclass, must be checked before the parent class in
+`errorHandler.ts` — same "subclass before parent" `instanceof` ordering
+`AiProviderNotConfiguredError` already required) is thrown specifically for
+an OpenRouter 429 (free-tier daily cap — 50 requests/day without credits),
+carrying the real reset time parsed from the response's
+`X-RateLimit-Reset` header when present. Mapped to `503`/`AI_RATE_LIMITED`
+with a `resetAt` field, surfaced client-side (`ApiRateLimitedError` in
+`apiClient.ts`) as "back around [actual local time]" rather than the
+generic "try again in a moment" every other AI-provider error still shows.
+**How to apply**: if the AI assistant stops responding, check the error
+`code` before assuming a bug — `AI_RATE_LIMITED` means wait for `resetAt`
+or add OpenRouter credits, not a regression to chase in this codebase.

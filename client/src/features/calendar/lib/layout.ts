@@ -48,6 +48,15 @@ export function formatClockFromDate(date: Date): string {
   return formatClock(date.getHours(), date.getMinutes())
 }
 
+/** Unlike formatClockFromDate (which reads the browser's own local time — correct for
+ * positioning something on the Day/Week rail, whose rows ARE the viewer's local day), this
+ * renders the clock time as it actually reads in a SPECIFIC IANA timezone (typically an
+ * interview's stored `timezone` field) — for any place a page prints that timezone in
+ * parens next to the time, the number and the label must actually agree. */
+export function formatClockInTimeZone(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: 'numeric', hour12: true, timeZone }).format(date)
+}
+
 /** Clips a [startAt, endAt) range to a single day's boundaries — needed because an interview
  * or blocked range can span midnight while the Day/Week grid only ever shows one calendar day
  * at a time; without clipping, a multi-day block would render at the wrong offset. */

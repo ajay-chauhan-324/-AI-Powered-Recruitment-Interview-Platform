@@ -12,6 +12,14 @@ export type InterviewType =
   | 'custom'
 
 export type InterviewLocationType = 'video' | 'phone' | 'onsite' | 'custom'
+export type MeetingType = 'online' | 'offline'
+export type MeetingStatus = 'not_started' | 'waiting' | 'in_progress' | 'ended'
+
+export interface MeetingInfo {
+  status: MeetingStatus
+  startedAt: string | null
+  endedAt: string | null
+}
 
 export interface PublicInterview {
   id: string
@@ -26,7 +34,9 @@ export interface OwnerInterview extends PublicInterview {
   interviewType: InterviewType
   round: number
   locationType: InterviewLocationType
+  meetingType: MeetingType
   meetingUrl: string
+  meeting: MeetingInfo | null
   address: string
   interviewerName: string
   candidateName: string

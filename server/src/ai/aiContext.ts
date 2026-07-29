@@ -8,3 +8,10 @@
 export type AiContext =
   | { mode: 'guest'; manageToken?: string }
   | { mode: 'admin' }
+  // activeApplicationId is an optional UX hint only (e.g. the candidate opened the AI
+  // assistant from a specific application's "Book with AI" button) — never an authorization
+  // grant. Every tool that uses it still re-verifies ownership via getApplicationForCandidate
+  // before touching anything, exactly as if the model had discovered the id itself through
+  // find_bookable_interview_rounds/list_my_applications.
+  | { mode: 'user'; userId: string; email: string; activeApplicationId?: string }
+  | { mode: 'recruiter'; userId: string; email: string; companyId: string }

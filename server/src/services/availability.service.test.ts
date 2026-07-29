@@ -24,6 +24,16 @@ function nextWeekdayAt(weekday: number, hour: number, minute = 0): Date {
   return day.plus({ hours: hour, minutes: minute }).toJSDate()
 }
 
+/** The next Mon-Fri day starting from tomorrow — unlike nextWeekdayAt(specific weekday),
+ * this is always at most 3 days out regardless of what day "today" happens to be (worst
+ * case: today is Friday, tomorrow is Saturday, next weekday is Monday). Needed for tests
+ * that must stay inside a short maxBookingWindowDays regardless of which day the suite runs. */
+function nextWorkingWeekdayAt(hour: number, minute = 0): Date {
+  let day = DateTime.fromJSDate(new Date(), { zone: TIMEZONE }).plus({ days: 1 }).startOf('day')
+  while (day.weekday < 1 || day.weekday > 5) day = day.plus({ days: 1 })
+  return day.plus({ hours: hour, minutes: minute }).toJSDate()
+}
+
 const baseInterview = {
   candidateName: 'Busy',
   candidateEmail: 'busy@example.com',
@@ -52,6 +62,40 @@ describe('AvailabilityService', () => {
       const afterDst = DateTime.fromObject({ year: 2027, month: 3, day: 15, hour: 9 }, { zone: TIMEZONE })
       assert.equal(beforeDst.offset, -300, 'expected EST (-300) before the transition')
       assert.equal(afterDst.offset, -240, 'expected EDT (-240) after the transition')
+    })
+  })
+
+  describe('DST transition day slot generation (regression for resolveLocalMinutesToUtcInterval)', () => {
+    // 2024-03-10 is the real US spring-forward Sunday (clocks jump 2:00 AM -> 3:00 AM). The
+    // buggy version of resolveLocalMinutesToUtcInterval computed working hours via
+    // startOf('day').plus({ minutes: 540 }) — Luxon's plus() for sub-day units adds real
+    // elapsed DURATION, not wall-clock time, so on this exact day it landed slots an hour
+    // late (10:00 local instead of the configured 9:00). This test only passes against the
+    // fixed .set({ hour, minute }) implementation.
+    it('generates a slot at the configured 9:00 AM wall-clock time, not shifted by the DST gap', async () => {
+      await ScheduleConfigModel.deleteOne({ singleton: 'default' })
+      await ScheduleConfigModel.create({
+        singleton: 'default',
+        timezone: TIMEZONE,
+        // Sunday only — the real transition day itself, per the US DST rule this project's
+        // per-recruiter calendars are freely configurable to observe.
+        workingHours: [{ dayOfWeek: 0, startMinutes: 540, endMinutes: 660, isActive: true }],
+        breaks: [],
+        maxBookingWindowDays: 30,
+      })
+
+      const now = DateTime.fromObject({ year: 2024, month: 2, day: 20 }, { zone: TIMEZONE }).toJSDate()
+      const rangeStart = DateTime.fromObject({ year: 2024, month: 3, day: 10 }, { zone: TIMEZONE }).startOf('day').toJSDate()
+      const rangeEnd = DateTime.fromObject({ year: 2024, month: 3, day: 11 }, { zone: TIMEZONE }).startOf('day').toJSDate()
+
+      const slots = await findAvailableSlots({ rangeStart, rangeEnd, durationMinutes: 30 }, now)
+      assert.ok(slots.length > 0, 'expected at least one slot on the DST transition day')
+
+      const firstSlotLocal = DateTime.fromJSDate(slots[0]!.start, { zone: TIMEZONE })
+      assert.equal(firstSlotLocal.hour, 9, 'the first slot must start at the configured 9:00 AM local wall-clock time')
+      assert.equal(firstSlotLocal.minute, 0)
+
+      await ScheduleConfigModel.deleteOne({ singleton: 'default' })
     })
   })
 
@@ -219,7 +263,12 @@ describe('AvailabilityService', () => {
     })
 
     it('extends unavailability by the configured buffer on both sides of an existing interview', async () => {
-      const start = nextWeekdayAt(1, 10) // 10:00-10:30, with a 15-min buffer -> 9:45-10:45 unavailable
+      // Must stay within this describe's 3-day maxBookingWindowDays regardless of which
+      // weekday the suite happens to run on — nextWeekdayAt(1, ...) ("next Monday") can be
+      // up to 7 days out (e.g. when today itself is a Monday), which would make every
+      // assertion below fail for an unrelated reason (the max-booking-window rule, not the
+      // buffer rule this test actually exercises).
+      const start = nextWorkingWeekdayAt(10) // 10:00-10:30, with a 15-min buffer -> 9:45-10:45 unavailable
       const interview = await InterviewModel.create({
         ...baseInterview,
         candidateEmail: 'buffer-test@example.com',

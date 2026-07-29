@@ -128,6 +128,15 @@ export function AdminSchedulePage() {
       <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
         <h1 className="text-xl font-medium text-ink-900">Schedule settings</h1>
         <p className="mt-1 mb-6 text-sm text-ink-700">Working hours, breaks, booking rules, and blocked time.</p>
+
+        {scheduleQuery.isLoading && <p className="mb-4 text-sm text-ink-700">Loading current schedule…</p>}
+        {scheduleQuery.isError && (
+          <p role="alert" className="mb-4 text-sm text-conflict">
+            Couldn't load the current schedule — showing blank defaults. Saving now would overwrite your real
+            configuration, so Save is disabled until this loads. Please refresh to try again.
+          </p>
+        )}
+
         <section>
           <h1 className="text-lg font-medium text-ink-900">Working hours</h1>
           <label className="mt-3 flex flex-col gap-1 text-sm text-ink-700">
@@ -273,7 +282,7 @@ export function AdminSchedulePage() {
             setSaveError(null)
             saveMutation.mutate()
           }}
-          disabled={saveMutation.isPending}
+          disabled={saveMutation.isPending || scheduleQuery.isLoading || scheduleQuery.isError}
           className="mt-6 flex min-h-11 items-center rounded-pill border border-amber-600 bg-amber-100 px-4 text-sm font-medium text-ink-900 hover:bg-amber-100/70 disabled:opacity-50"
         >
           {saveMutation.isPending ? 'Saving…' : saved ? 'Saved' : 'Save schedule'}
@@ -284,6 +293,12 @@ export function AdminSchedulePage() {
           <p className="mt-1 text-sm text-ink-700">One-off periods (holidays, vacation) — next {BLOCKED_SLOT_WINDOW_DAYS} days.</p>
 
           <div className="mt-4 flex flex-col gap-2">
+            {blockedSlotsQuery.isLoading && <p className="text-sm text-ink-700">Loading…</p>}
+            {blockedSlotsQuery.isError && (
+              <p role="alert" className="text-sm text-conflict">
+                Couldn't load blocked time. Please try again.
+              </p>
+            )}
             {blockedSlotsQuery.data?.blockedSlots.map((slot) => (
               <div key={slot.id} className="flex items-center justify-between rounded-md border border-hairline px-3 py-2">
                 <div>

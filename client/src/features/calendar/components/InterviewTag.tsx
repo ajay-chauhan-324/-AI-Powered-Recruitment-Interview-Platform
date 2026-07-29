@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import { formatClockFromDate, heightForRange, offsetForDate } from '@/features/calendar/lib/layout'
 
-export type InterviewTagStatus = 'pending' | 'confirmed' | 'cancelled'
+export type InterviewTagStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no_show'
 export type InterviewTagSource = 'ai' | 'admin' | 'public'
 export type InterviewTagType =
   | 'hr_screening'
@@ -72,6 +72,10 @@ export function InterviewTag({
   onClick,
 }: InterviewTagProps) {
   const cancelled = status === 'cancelled'
+  // Distinct from "cancelled" — the interview actually happened (or the candidate no-showed),
+  // so it must never get the cancelled state's strikethrough, only the same muted/no-longer-
+  // live border treatment (it's not an upcoming/active tag either).
+  const concluded = status === 'completed' || status === 'no_show'
   const startLabel = formatClockFromDate(startAt)
   const endLabel = formatClockFromDate(endAt)
   const displayTitle = title ?? 'Interview'
@@ -92,7 +96,7 @@ export function InterviewTag({
       style={style}
       role={onClick ? 'button' : 'group'}
       tabIndex={onClick ? 0 : undefined}
-      aria-label={`${displayTitle}, ${startLabel} to ${endLabel}${cancelled ? ', cancelled' : ''}`}
+      aria-label={`${displayTitle}, ${startLabel} to ${endLabel}${cancelled ? ', cancelled' : status === 'completed' ? ', completed' : status === 'no_show' ? ', no-show' : ''}`}
       onClick={(event) => {
         event.stopPropagation()
         onClick?.()
@@ -111,7 +115,7 @@ export function InterviewTag({
         'absolute overflow-hidden rounded-md border-l-[3px] bg-paper-50 px-2.5 py-1.5 shadow-tag ' +
         (compact ? 'inset-x-1' : 'left-2 right-2 sm:right-auto sm:w-[min(60%,26rem)]') +
         ' ' +
-        (cancelled ? 'border-ink-300' : 'border-amber-600') +
+        (cancelled || concluded ? 'border-ink-300' : 'border-amber-600') +
         (highlighted ? ' pulse-highlight' : '') +
         (onClick ? ' cursor-pointer' : '')
       }

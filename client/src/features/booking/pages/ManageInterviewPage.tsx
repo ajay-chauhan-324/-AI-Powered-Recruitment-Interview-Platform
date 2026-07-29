@@ -12,6 +12,7 @@ import { buildIcsDataUrl } from '@/features/booking/lib/ics'
 import { ApiError } from '@/lib/apiClient'
 import { formatClockFromDate } from '@/features/calendar/lib/layout'
 import { StandaloneCard } from '@/components/layout/StandaloneCard'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 const RESCHEDULE_SEARCH_DAYS = 14
 const JOIN_WINDOW_MINUTES_BEFORE = 15
@@ -106,7 +107,15 @@ export function ManageInterviewPage() {
   })
 
   if (interviewQuery.isLoading) {
-    return <PageShell>Loading…</PageShell>
+    return (
+      <PageShell>
+        <div className="space-y-3">
+          <Skeleton className="h-6 w-2/3" />
+          <Skeleton className="h-4 w-1/2" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+      </PageShell>
+    )
   }
 
   if (interviewQuery.isError) {

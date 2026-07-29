@@ -1,9 +1,15 @@
 import crypto from 'node:crypto'
 import mongoose, { isValidObjectId } from 'mongoose'
-import { InterviewModel, type InterviewDocument } from '../models/Interview.model.js'
+import {
+  InterviewModel,
+  type InterviewDocument,
+  type InterviewLocationType,
+  type MeetingParticipantRole,
+} from '../models/Interview.model.js'
+import { JobModel } from '../models/Job.model.js'
 import { BookingLockModel } from '../models/BookingLock.model.js'
 import { createInterviewInputSchema, type CreateInterviewInput } from '../validators/interview.validators.js'
-import { findNearestAlternatives, isSlotAvailable } from './availability.service.js'
+import { findNearestAlternatives, getBufferMinutesMs, isSlotAvailable } from './availability.service.js'
 import { InterviewNotFoundError, BookingValidationError, SlotConflictError } from './booking.errors.js'
 import { interviewEvents } from '../events/interviewEvents.js'
 import { env } from '../config/env.js'
@@ -17,7 +23,9 @@ import {
   type InterviewNotificationContext,
 } from './notifications/notification.service.js'
 
-function toNotificationContext(interview: InterviewDocument): InterviewNotificationContext {
+/** Exported so the reminder scheduler (meetingReminder.service.ts) can build the same
+ * notification shape without duplicating this field mapping. */
+export function toNotificationContext(interview: InterviewDocument): InterviewNotificationContext {
   return {
     candidateName: interview.candidateName,
     candidateEmail: interview.candidateEmail,
@@ -74,6 +82,30 @@ export function hashManageToken(raw: string): string {
   return crypto.createHash('sha256').update(raw).digest('hex')
 }
 
+/** Not secret in the same sense as a manage token — it's a route/room key, never the sole
+ * authorization check (the Socket.IO meeting namespace re-verifies the requesting session
+ * actually owns this interview before letting them join the room). Just opaque enough that a
+ * meeting link isn't a guessable sequential id. */
+function generateMeetingId(): string {
+  return crypto.randomBytes(16).toString('hex')
+}
+
+/** Builds this interview's own in-platform Meeting Room state — never a Google Meet/Zoom
+ * link (CLAUDE.md's "no external video provider" note; this is the real, in-platform Meeting
+ * Room, not the placeholder that note originally described). Only video-format interviews get
+ * one; phone/onsite/custom interviews are unaffected and keep whatever meetingUrl (if any) the
+ * caller supplied. */
+function buildMeetingFields(locationType: InterviewLocationType, callerMeetingUrl: string | undefined) {
+  if (locationType !== 'video') {
+    return { meetingUrl: callerMeetingUrl ?? '', meeting: null }
+  }
+  const meetingId = generateMeetingId()
+  return {
+    meetingUrl: `${env.CLIENT_ORIGIN}/meeting/${meetingId}`,
+    meeting: { meetingId, status: 'not_started' as const, participants: [] },
+  }
+}
+
 /** Touches the shared BookingLock document as the first operation of a booking-mutation transaction —
  * see BookingLock.model.ts for why this is necessary for genuine concurrency safety. */
 async function touchBookingLock(session: mongoose.ClientSession): Promise<void> {
@@ -94,7 +126,21 @@ async function withAlternativesOnConflict<T>(
   }
 }
 
-export async function createInterview(rawInput: CreateInterviewInput): Promise<CreateInterviewResult> {
+/**
+ * `userId` is deliberately a separate code-only parameter, never part of the Zod-validated
+ * `rawInput` — it must only ever come from a verified session (userAuth.ts), never from
+ * client-supplied request-body content, so there is no schema field a caller could smuggle
+ * a value into. `recruiterId` is the same kind of code-only parameter: which calendar this
+ * booking belongs to (CLAUDE.md §36 second pivot). Omitted, this interview belongs to the
+ * legacy global calendar (the original generic/admin booking product) exactly as before;
+ * application.service.ts's scheduleApplicationInterview is the only caller that passes one,
+ * resolved server-side from the job's own recruiterId — never trusted from client input.
+ */
+export async function createInterview(
+  rawInput: CreateInterviewInput,
+  userId?: string,
+  recruiterId?: string,
+): Promise<CreateInterviewResult> {
   const input = createInterviewInputSchema.parse(rawInput)
   const now = new Date()
 
@@ -105,15 +151,21 @@ export async function createInterview(rawInput: CreateInterviewInput): Promise<C
   const endAt = new Date(input.startAt.getTime() + input.durationMinutes * 60_000)
 
   // Fast pre-check outside any transaction: working hours, breaks, blocked periods, buffer,
-  // minimum notice, maximum booking window, and existing interviews.
-  const preAvailable = await isSlotAvailable(input.startAt, input.durationMinutes, now)
+  // minimum notice, maximum booking window, and existing interviews — all scoped to this
+  // exact calendar (recruiterId's own ScheduleConfig, or the legacy singleton if omitted).
+  const preAvailable = await isSlotAvailable(input.startAt, input.durationMinutes, now, undefined, recruiterId)
   if (!preAvailable) {
     throw new SlotConflictError(
-      await findNearestAlternatives({ preferredStart: input.startAt, durationMinutes: input.durationMinutes }, now),
+      await findNearestAlternatives(
+        { preferredStart: input.startAt, durationMinutes: input.durationMinutes, recruiterId },
+        now,
+      ),
     )
   }
 
   const { raw: manageToken, hash: manageTokenHash } = generateManageToken()
+  const bufferMs = await getBufferMinutesMs(recruiterId)
+  const meetingFields = buildMeetingFields(input.locationType ?? 'video', input.meetingUrl)
 
   const session = await mongoose.startSession()
   let created: InterviewDocument | null = null
@@ -124,11 +176,18 @@ export async function createInterview(rawInput: CreateInterviewInput): Promise<C
         session.withTransaction(async () => {
           await touchBookingLock(session)
 
-          // Never trust the pre-check above as final authority — re-verify inside the transaction.
+          // Never trust the pre-check above as final authority — re-verify inside the
+          // transaction. Widened by the same configured buffer the pre-check (via
+          // findAvailableSlots) applies — otherwise two requests racing past the pre-check at
+          // once could each land buffer-distance apart yet still violate the buffer margin,
+          // since a plain raw-overlap check alone wouldn't catch that. Scoped by recruiterId,
+          // same as the pre-check — recruiter A's interviews never conflict-check against
+          // recruiter B's.
           const conflict = await InterviewModel.findOne({
+            recruiterId: recruiterId ?? null,
             status: { $in: ['pending', 'confirmed'] },
-            startAt: { $lt: endAt },
-            endAt: { $gt: input.startAt },
+            startAt: { $lt: new Date(endAt.getTime() + bufferMs) },
+            endAt: { $gt: new Date(input.startAt.getTime() - bufferMs) },
           }).session(session)
 
           if (conflict) {
@@ -143,7 +202,8 @@ export async function createInterview(rawInput: CreateInterviewInput): Promise<C
                 interviewType: input.interviewType,
                 round: input.round,
                 locationType: input.locationType,
-                meetingUrl: input.meetingUrl,
+                meetingUrl: meetingFields.meetingUrl,
+                meeting: meetingFields.meeting,
                 address: input.address,
                 interviewerName: input.interviewerName,
                 interviewerEmail: input.interviewerEmail,
@@ -162,13 +222,19 @@ export async function createInterview(rawInput: CreateInterviewInput): Promise<C
                 status: 'confirmed',
                 source: input.source,
                 manageTokenHash,
+                userId: userId ?? null,
+                recruiterId: recruiterId ?? null,
               },
             ],
             { session },
           )
           created = doc ?? null
         }),
-      () => findNearestAlternatives({ preferredStart: input.startAt, durationMinutes: input.durationMinutes }, now),
+      () =>
+        findNearestAlternatives(
+          { preferredStart: input.startAt, durationMinutes: input.durationMinutes, recruiterId },
+          now,
+        ),
     )
   } finally {
     await session.endSession()
@@ -220,6 +286,10 @@ export async function rescheduleInterview(
   const session = await mongoose.startSession()
   let updated: InterviewDocument | null = null
   let durationMinutes = 0
+  // Set inside the transaction from the existing interview's own recruiterId (an interview
+  // never changes which calendar it belongs to) — read by the onConflict callback below,
+  // which runs after the transaction throws, so it must live outside the closure.
+  let recruiterId: string | null = null
 
   try {
     await withAlternativesOnConflict(
@@ -232,17 +302,22 @@ export async function rescheduleInterview(
             throw new InterviewNotFoundError()
           }
           durationMinutes = newDurationMinutes ?? existing.durationMinutes
+          recruiterId = existing.recruiterId ? existing.recruiterId.toString() : null
 
           const newEnd = new Date(newStart.getTime() + durationMinutes * 60_000)
+          const bufferMs = await getBufferMinutesMs(recruiterId ?? undefined)
 
           // Excludes the interview's own current (pre-move) row — otherwise a reschedule that
           // overlaps its own existing slot (e.g. moving 9:00-9:30 to 9:15-9:45) would look like a
-          // conflict with itself.
+          // conflict with itself. Widened by the configured buffer, matching findAvailableSlots
+          // and createInterview's transactional re-check — see the comment there. Scoped to the
+          // same calendar this interview already belongs to, same as createInterview.
           const conflict = await InterviewModel.findOne({
             _id: { $ne: existing._id },
+            recruiterId,
             status: { $in: ['pending', 'confirmed'] },
-            startAt: { $lt: newEnd },
-            endAt: { $gt: newStart },
+            startAt: { $lt: new Date(newEnd.getTime() + bufferMs) },
+            endAt: { $gt: new Date(newStart.getTime() - bufferMs) },
           }).session(session)
 
           if (conflict) {
@@ -262,7 +337,12 @@ export async function rescheduleInterview(
         }),
       () =>
         findNearestAlternatives(
-          { preferredStart: newStart, durationMinutes, excludeInterviewId: interviewId },
+          {
+            preferredStart: newStart,
+            durationMinutes,
+            excludeInterviewId: interviewId,
+            recruiterId: recruiterId ?? undefined,
+          },
           now,
         ),
     )
@@ -340,6 +420,111 @@ export async function listInterviewsInRange(from: Date, to: Date): Promise<Inter
  * newest first — powers the admin candidate detail view (upcoming/history/cancelled). */
 export async function listInterviewsForCandidate(candidateEmail: string): Promise<InterviewDocument[]> {
   return InterviewModel.find({ candidateEmail: candidateEmail.trim().toLowerCase() }).sort({ startAt: -1 })
+}
+
+/** "My interviews" (CLAUDE.md's user-auth phase): matches both interviews booked while signed
+ * in (userId) and interviews booked as a guest with the same email before/without an account
+ * (candidateEmail) — the additive, non-migrating link between the two (see Interview.model.ts). */
+export async function listInterviewsForUser(userId: string, email: string): Promise<InterviewDocument[]> {
+  return InterviewModel.find({
+    $or: [{ userId }, { candidateEmail: email.trim().toLowerCase() }],
+  }).sort({ startAt: -1 })
+}
+
+/** The recruiter's own calendar (CLAUDE.md §3): every interview booked against one of this
+ * recruiter's jobs, across every application/candidate — joined through Job ownership since
+ * Interview never carries a recruiterId directly (only pipeline-originated interviews carry
+ * jobId at all; a recruiter with no jobs simply has no interviews). */
+export async function listInterviewsForRecruiter(recruiterId: string): Promise<InterviewDocument[]> {
+  const jobs = await JobModel.find({ recruiterId }).select('_id')
+  if (jobs.length === 0) return []
+  return InterviewModel.find({ jobId: { $in: jobs.map((job) => job._id) } })
+    .populate({ path: 'jobId', select: 'title companyId', populate: { path: 'companyId', select: 'name' } })
+    .sort({ startAt: 1 })
+}
+
+/** Ownership check for a recruiter acting on one interview from their own calendar (reschedule/
+ * cancel) — re-verified through the interview's jobId -> Job.recruiterId every time, never
+ * trusted from the interview id alone. An interview with no jobId (not pipeline-originated)
+ * is never reachable this way, matching listInterviewsForRecruiter's own scoping. */
+export async function getInterviewOwnedByRecruiter(recruiterId: string, interviewId: string): Promise<InterviewDocument> {
+  if (!isValidObjectId(interviewId)) throw new InterviewNotFoundError()
+  const interview = await InterviewModel.findById(interviewId)
+  if (!interview || !interview.jobId) throw new InterviewNotFoundError()
+  const job = await JobModel.findOne({ _id: interview.jobId, recruiterId })
+  if (!job) throw new InterviewNotFoundError()
+  return interview
+}
+
+/** Ownership check for authenticated reschedule/cancel — a user may only act on an interview
+ * that is theirs by userId or by matching candidateEmail, never by interview id alone. This is
+ * the IDOR boundary: guessing another user's interview id must not grant access. */
+export async function findInterviewOwnedByUser(
+  interviewId: string,
+  userId: string,
+  email: string,
+): Promise<InterviewDocument | null> {
+  if (!isValidObjectId(interviewId)) return null
+  return InterviewModel.findOne({
+    _id: interviewId,
+    $or: [{ userId }, { candidateEmail: email.trim().toLowerCase() }],
+  })
+}
+
+/** Looked up by meetingId (the public path segment of meetingUrl, /meeting/:meetingId) rather
+ * than interview id — the Meeting Room route only ever knows the meetingId from the URL. Not
+ * itself an authorization check (see recordMeetingParticipantJoin's callers in
+ * meetingNamespace.ts, which re-verify the caller owns this interview via the existing
+ * getInterviewOwnedByRecruiter/findInterviewOwnedByUser before ever calling this). */
+export async function getInterviewByMeetingId(meetingId: string): Promise<InterviewDocument | null> {
+  return InterviewModel.findOne({ 'meeting.meetingId': meetingId })
+}
+
+/** Moves the meeting to 'waiting' (this role is the only one currently in the room) or
+ * 'in_progress' (both candidate and recruiter are now present) based on who's actually active
+ * — never a naive "first join = waiting, second = in_progress" counter, so a reconnect after a
+ * dropped connection can't wedge the status. */
+export async function recordMeetingParticipantJoin(
+  interviewId: string,
+  role: MeetingParticipantRole,
+): Promise<InterviewDocument> {
+  const interview = await InterviewModel.findById(interviewId)
+  if (!interview || !interview.meeting) throw new InterviewNotFoundError()
+
+  interview.meeting.participants.push({ role, joinedAt: new Date(), leftAt: null })
+  const activeRoles = new Set(interview.meeting.participants.filter((p) => !p.leftAt).map((p) => p.role))
+  if (activeRoles.size >= 2) {
+    interview.meeting.status = 'in_progress'
+    if (!interview.meeting.startedAt) interview.meeting.startedAt = new Date()
+  } else {
+    interview.meeting.status = 'waiting'
+  }
+  await interview.save()
+  return interview
+}
+
+/** Marks the most recent still-active participant of this role as left. Ends the meeting only
+ * once nobody active remains — one side leaving briefly (a dropped connection, not a real
+ * "Leave Meeting" click) shouldn't tear down the room while the other side is still in it. */
+export async function recordMeetingParticipantLeave(
+  interviewId: string,
+  role: MeetingParticipantRole,
+): Promise<InterviewDocument> {
+  const interview = await InterviewModel.findById(interviewId)
+  if (!interview || !interview.meeting) throw new InterviewNotFoundError()
+
+  const active = [...interview.meeting.participants].reverse().find((p) => p.role === role && !p.leftAt)
+  if (active) active.leftAt = new Date()
+
+  const activeRoles = new Set(interview.meeting.participants.filter((p) => !p.leftAt).map((p) => p.role))
+  if (activeRoles.size === 0) {
+    interview.meeting.status = 'ended'
+    interview.meeting.endedAt = new Date()
+  } else {
+    interview.meeting.status = 'waiting'
+  }
+  await interview.save()
+  return interview
 }
 
 export interface CandidateSummary {

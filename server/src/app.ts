@@ -7,6 +7,20 @@ import { healthRouter } from './routes/health.route.js'
 import { calendarRouter } from './routes/calendar.route.js'
 import { availabilityRouter } from './routes/availability.route.js'
 import { interviewsRouter } from './routes/interviews.route.js'
+import { authRouter } from './routes/auth.route.js'
+import { myInterviewsRouter } from './routes/myInterviews.route.js'
+import { resumesRouter } from './routes/resumes.route.js'
+import { avatarRouter } from './routes/avatar.route.js'
+import { companiesRouter } from './routes/companies.route.js'
+import { meetingsRouter } from './routes/meetings.route.js'
+import { jobsRouter } from './routes/jobs.route.js'
+import { recruiterJobsRouter } from './routes/recruiter/recruiterJobs.route.js'
+import { recruiterCompanyRouter } from './routes/recruiter/recruiterCompany.route.js'
+import { applicationsRouter } from './routes/applications.route.js'
+import { recruiterApplicationsRouter } from './routes/recruiter/recruiterApplications.route.js'
+import { recruiterInterviewsRouter } from './routes/recruiter/recruiterInterviews.route.js'
+import { recruiterScheduleRouter } from './routes/recruiter/recruiterSchedule.route.js'
+import { recruiterAiRouter } from './routes/recruiter/recruiterAi.route.js'
 import { adminAuthRouter } from './routes/admin/adminAuth.route.js'
 import { adminInterviewsRouter } from './routes/admin/adminInterviews.route.js'
 import { adminScheduleRouter } from './routes/admin/adminSchedule.route.js'
@@ -15,6 +29,7 @@ import { adminCandidatesRouter } from './routes/admin/adminCandidates.route.js'
 import { adminDashboardRouter } from './routes/admin/adminDashboard.route.js'
 import { aiRouter } from './routes/ai.route.js'
 import { adminAiRouter } from './routes/admin/adminAi.route.js'
+import { userAiRouter } from './routes/userAi.route.js'
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js'
 
 /** Minimal, dependency-free request log: method, path, status, and duration. Enough for
@@ -51,6 +66,20 @@ export function createApp() {
   app.use('/api/v1/calendar', calendarRouter)
   app.use('/api/v1/availability', availabilityRouter)
   app.use('/api/v1/interviews', interviewsRouter)
+  app.use('/api/v1/auth', authRouter)
+  app.use('/api/v1/my/interviews', myInterviewsRouter)
+  app.use('/api/v1/resumes', resumesRouter)
+  app.use('/api/v1/me/photo', avatarRouter)
+  app.use('/api/v1/companies', companiesRouter)
+  app.use('/api/v1/meetings', meetingsRouter)
+  app.use('/api/v1/jobs', jobsRouter)
+  app.use('/api/v1/recruiter/jobs', recruiterJobsRouter)
+  app.use('/api/v1/recruiter/company', recruiterCompanyRouter)
+  app.use('/api/v1/applications', applicationsRouter)
+  app.use('/api/v1/recruiter/applications', recruiterApplicationsRouter)
+  app.use('/api/v1/recruiter/interviews', recruiterInterviewsRouter)
+  app.use('/api/v1/recruiter/schedule', recruiterScheduleRouter)
+  app.use('/api/v1/recruiter/ai', recruiterAiRouter)
   app.use('/api/v1/admin/auth', adminAuthRouter)
   app.use('/api/v1/admin/interviews', adminInterviewsRouter)
   app.use('/api/v1/admin/schedule', adminScheduleRouter)
@@ -59,6 +88,7 @@ export function createApp() {
   app.use('/api/v1/admin/dashboard', adminDashboardRouter)
   app.use('/api/v1/ai', aiRouter)
   app.use('/api/v1/admin/ai', adminAiRouter)
+  app.use('/api/v1/my/ai', userAiRouter)
 
   app.use(notFoundHandler)
   app.use(errorHandler)

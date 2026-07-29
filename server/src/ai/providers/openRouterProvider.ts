@@ -2,6 +2,7 @@ import { env } from '../../config/env.js'
 import {
   AiProviderError,
   AiProviderNotConfiguredError,
+  AiProviderRateLimitedError,
   type AiCompletionResult,
   type AiMessage,
   type AiProvider,
@@ -32,7 +33,13 @@ interface OpenRouterMessage {
 
 interface OpenRouterResponse {
   choices?: Array<{ message: OpenRouterMessage }>
-  error?: { message?: string }
+  error?: {
+    message?: string
+    // Present on a 429 free-tier daily rate limit — X-RateLimit-Reset is epoch milliseconds
+    // as a string. Any other error shape simply won't have this, which is fine — resetAt
+    // just stays null in that case (see openRouterProvider's !response.ok branch below).
+    metadata?: { headers?: { 'X-RateLimit-Reset'?: string } }
+  }
 }
 
 function toOpenRouterMessage(message: AiMessage): OpenRouterMessage {
@@ -96,6 +103,14 @@ export class OpenRouterProvider implements AiProvider {
     const body = (await response.json().catch(() => null)) as OpenRouterResponse | null
 
     if (!response.ok) {
+      if (response.status === 429) {
+        const resetHeader = body?.error?.metadata?.headers?.['X-RateLimit-Reset']
+        const resetAt = resetHeader && !Number.isNaN(Number(resetHeader)) ? new Date(Number(resetHeader)) : null
+        throw new AiProviderRateLimitedError(
+          body?.error?.message ?? 'The AI provider has hit its rate limit.',
+          resetAt,
+        )
+      }
       throw new AiProviderError(body?.error?.message ?? `AI provider request failed with status ${response.status}`)
     }
 

@@ -48,6 +48,12 @@ export function AdminDashboardPage() {
 
         {dashboardQuery.isLoading && <p className="mt-6 text-sm text-ink-700">Loading…</p>}
 
+        {dashboardQuery.isError && (
+          <p role="alert" className="mt-6 text-sm text-conflict">
+            Couldn't load the dashboard. Please try again.
+          </p>
+        )}
+
         {stats && !stats.scheduleConfigured && (
           <div className="mt-6 rounded-md border border-amber-600/40 bg-amber-100 px-4 py-3 text-sm text-ink-900">
             No working hours are configured yet — candidates can't book anything until you{' '}

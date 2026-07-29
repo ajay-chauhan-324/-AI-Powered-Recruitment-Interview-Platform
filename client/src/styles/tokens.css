@@ -73,3 +73,77 @@
   --shadow-panel: 0 4px 16px rgb(33 29 23 / 10%);
   --shadow-sheet: 0 -4px 24px rgb(33 29 23 / 14%);
 }
+
+/**
+ * Dark theme — a deliberately designed dark "ledger" (warm charcoal/walnut, not a cold
+ * blue-black), not an inversion of the light palette. Every utility class generated from
+ * the @theme block above (bg-paper-50, text-ink-900, border-hairline, etc.) reads these
+ * custom properties at paint time via var(), so overriding the property values here —
+ * without touching a single component — re-themes the entire app. This is Tailwind v4's
+ * documented pattern for runtime/dark theming (unlike v3's build-time `dark:` variant).
+ *
+ * Two selectors apply the same values for two different reasons:
+ * - the media query: the user has never chosen (or picked "system") — follow the OS,
+ *   including live changes, with no JS involved at all.
+ * - the attribute selector: the user explicitly chose "dark" (useTheme.ts sets
+ *   data-theme="dark" on <html>) — wins regardless of OS preference.
+ * `:root:not([data-theme="light"])` inside the media query ensures an explicit "light"
+ * choice always overrides a dark OS preference.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-paper-50: #17140f;
+    --color-paper-100: #1f1b15;
+    --color-paper-200: #29241c;
+
+    --color-ink-900: #f3ece0;
+    --color-ink-700: #c9c0b0;
+    --color-ink-500: #8f8676;
+    --color-ink-300: #4a4438;
+
+    --color-amber-600: #d98a4c;
+    --color-amber-500: #e2a06b;
+    --color-amber-100: #3a2a1a;
+
+    --color-available: #5fae82;
+    --color-conflict: #e0685a;
+    --color-conflict-tint: #3a1f1c;
+
+    --color-hairline: rgb(243 236 224 / 14%);
+    --color-canvas-focus-scrim: rgb(243 236 224 / 8%);
+
+    --shadow-tag: 0 1px 2px rgb(0 0 0 / 30%), 0 1px 1px rgb(0 0 0 / 20%);
+    --shadow-panel: 0 4px 16px rgb(0 0 0 / 35%);
+    --shadow-sheet: 0 -4px 24px rgb(0 0 0 / 45%);
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --color-paper-50: #17140f;
+  --color-paper-100: #1f1b15;
+  --color-paper-200: #29241c;
+
+  --color-ink-900: #f3ece0;
+  --color-ink-700: #c9c0b0;
+  --color-ink-500: #8f8676;
+  --color-ink-300: #4a4438;
+
+  --color-amber-600: #d98a4c;
+  --color-amber-500: #e2a06b;
+  --color-amber-100: #3a2a1a;
+
+  --color-available: #5fae82;
+  --color-conflict: #e0685a;
+  --color-conflict-tint: #3a1f1c;
+
+  --color-hairline: rgb(243 236 224 / 14%);
+  --color-canvas-focus-scrim: rgb(243 236 224 / 8%);
+
+  --shadow-tag: 0 1px 2px rgb(0 0 0 / 30%), 0 1px 1px rgb(0 0 0 / 20%);
+  --shadow-panel: 0 4px 16px rgb(0 0 0 / 35%);
+  --shadow-sheet: 0 -4px 24px rgb(0 0 0 / 45%);
+
+  color-scheme: dark;
+}

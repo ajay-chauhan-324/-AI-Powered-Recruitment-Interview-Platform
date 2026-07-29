@@ -31,6 +31,16 @@ function nextWeekdayAt(weekday: number, hour: number): Date {
   return day.plus({ hours: hour }).toJSDate()
 }
 
+/** Per-recruiter calendars (CLAUDE.md §36 second pivot) are auto-seeded with the same
+ * Asia/Kolkata Mon-Fri 10:00-13:00/15:00-19:00 pattern the legacy fixed policy uses (see
+ * scheduleConfig.service.ts's getOrCreateScheduleConfigForRecruiter) — this resolves a time
+ * inside that pattern for a brand-new recruiter calendar's tests. */
+function nextWeekdayAtZone(weekday: number, hour: number, zone: string): Date {
+  let day = DateTime.fromJSDate(new Date(), { zone }).plus({ days: 1 }).startOf('day')
+  while (day.weekday !== weekday) day = day.plus({ days: 1 })
+  return day.plus({ hours: hour }).toJSDate()
+}
+
 const baseInput = {
   title: 'Consultation',
   candidateName: 'Ada Lovelace',
@@ -270,9 +280,56 @@ describe('InterviewService', () => {
     assert.equal(interview.interviewType, 'technical')
     assert.equal(interview.round, 2)
     assert.equal(interview.locationType, 'video')
-    assert.equal(interview.meetingUrl, 'https://meet.example.com/abc')
+    // A video-format interview always gets the platform's own in-platform Meeting Room link —
+    // never the caller-supplied external URL (CLAUDE.md's "no external video provider"
+    // decision) — the Meeting Room feature generates and owns meetingUrl for these.
+    assert.ok(interview.meetingUrl.includes('/meeting/'), 'meetingUrl must be the in-platform meeting link, not an external one')
+    assert.notEqual(interview.meetingUrl, 'https://meet.example.com/abc')
+    assert.equal(interview.meetingType, 'online')
+    assert.ok(interview.meeting, 'a video interview must get a Meeting Room record')
+    assert.equal(interview.meeting?.status, 'not_started')
+    assert.ok(interview.meeting?.meetingId && interview.meetingUrl.includes(interview.meeting.meetingId))
     assert.equal(interview.interviewerName, 'Priya Sharma')
 
     await InterviewModel.deleteOne({ _id: interview._id })
+  })
+
+  it('scopes conflict detection per recruiter — two different recruiters can book the identical instant, but neither can double-book their own', async () => {
+    const recruiterA = new mongoose.Types.ObjectId().toString()
+    const recruiterB = new mongoose.Types.ObjectId().toString()
+    // Next Monday 11:00 IST — inside the auto-seeded per-recruiter default calendar's hours.
+    const start = nextWeekdayAtZone(1, 11, 'Asia/Kolkata')
+
+    const a = await createInterview(
+      { ...baseInput, candidateEmail: 'recruiter-a@example.com', startAt: start, source: 'public', timezone: 'Asia/Kolkata' },
+      undefined,
+      recruiterA,
+    )
+    const b = await createInterview(
+      { ...baseInput, candidateEmail: 'recruiter-b@example.com', startAt: start, source: 'public', timezone: 'Asia/Kolkata' },
+      undefined,
+      recruiterB,
+    )
+
+    assert.equal(a.interview.recruiterId?.toString(), recruiterA)
+    assert.equal(b.interview.recruiterId?.toString(), recruiterB)
+
+    await assert.rejects(
+      () =>
+        createInterview(
+          {
+            ...baseInput,
+            candidateEmail: 'recruiter-a-again@example.com',
+            startAt: start,
+            source: 'public',
+            timezone: 'Asia/Kolkata',
+          },
+          undefined,
+          recruiterA,
+        ),
+      (error: unknown) => error instanceof SlotConflictError,
+    )
+
+    await InterviewModel.deleteMany({ _id: { $in: [a.interview._id, b.interview._id] } })
   })
 })

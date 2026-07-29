@@ -24,7 +24,7 @@ export interface AdminInterview {
   endAt: string
   durationMinutes: number
   timezone: string
-  status: 'pending' | 'confirmed' | 'cancelled'
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no_show'
   source: 'ai' | 'admin' | 'public'
   rescheduleHistory: Array<{ previousStartAt: string; previousEndAt: string; changedAt: string }>
 }
@@ -68,7 +68,7 @@ export interface DashboardInterviewSummary {
   interviewerName: string
   startAt: string
   endAt: string
-  status: 'pending' | 'confirmed' | 'cancelled'
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no_show'
 }
 
 export interface DashboardStats {
@@ -95,7 +95,7 @@ export interface CandidateInterviewSummary {
   title: string
   interviewType: InterviewType
   round: number
-  status: 'pending' | 'confirmed' | 'cancelled'
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no_show'
   startAt: string
   endAt: string
   source: 'ai' | 'admin' | 'public'

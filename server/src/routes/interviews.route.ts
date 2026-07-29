@@ -6,6 +6,7 @@ import {
   patchInterviewByManageToken,
   postInterview,
 } from '../controllers/interviews.controller.js'
+import { attachUserIfPresent } from '../middleware/userAuth.js'
 
 export const interviewsRouter = Router()
 
@@ -28,7 +29,7 @@ const manageTokenRateLimit = rateLimit({
   legacyHeaders: false,
 })
 
-interviewsRouter.post('/', createInterviewRateLimit, postInterview)
+interviewsRouter.post('/', createInterviewRateLimit, attachUserIfPresent, postInterview)
 interviewsRouter.get('/manage/:token', manageTokenRateLimit, getInterviewByManageToken)
 interviewsRouter.patch('/manage/:token', manageTokenRateLimit, patchInterviewByManageToken)
 interviewsRouter.delete('/manage/:token', manageTokenRateLimit, deleteInterviewByManageToken)

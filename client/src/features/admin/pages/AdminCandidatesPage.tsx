@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchAdminCandidateInterviews, fetchAdminCandidates } from '@/features/admin/api/adminApi'
 import { AdminNav } from '@/features/admin/components/AdminNav'
 import { formatClockFromDate } from '@/features/calendar/lib/layout'
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation'
 
 const INTERVIEW_TYPE_LABEL: Record<string, string> = {
   hr_screening: 'HR Screening',
@@ -41,6 +42,7 @@ export function AdminCandidatesPage() {
     queryFn: () => fetchAdminCandidateInterviews(selectedEmail!),
     enabled: Boolean(selectedEmail),
   })
+  useRealtimeInvalidation([['admin-candidates'], ['admin-candidate-interviews']])
 
   const selectedCandidate = candidatesQuery.data?.candidates.find((c) => c.candidateEmail === selectedEmail)
 
@@ -59,7 +61,12 @@ export function AdminCandidatesPage() {
           />
 
           {candidatesQuery.isLoading && <p className="text-sm text-ink-700">Loading…</p>}
-          {candidatesQuery.data?.candidates.length === 0 && (
+          {candidatesQuery.isError && (
+            <p role="alert" className="text-sm text-conflict">
+              Couldn't load candidates. Please try again.
+            </p>
+          )}
+          {!candidatesQuery.isError && candidatesQuery.data?.candidates.length === 0 && (
             <p className="text-sm text-ink-700">No candidates {search ? 'match that search' : 'have booked yet'}.</p>
           )}
 
@@ -97,6 +104,11 @@ export function AdminCandidatesPage() {
 
               <h3 className="mt-6 text-sm font-medium uppercase tracking-wide text-ink-700">Interview history</h3>
               {candidateInterviewsQuery.isLoading && <p className="mt-2 text-sm text-ink-700">Loading…</p>}
+              {candidateInterviewsQuery.isError && (
+                <p role="alert" className="mt-2 text-sm text-conflict">
+                  Couldn't load this candidate's interview history. Please try again.
+                </p>
+              )}
               <div className="mt-2 flex flex-col gap-2">
                 {candidateInterviewsQuery.data?.interviews.map((interview) => (
                   <div key={interview.id} className="rounded-md border border-hairline bg-paper-50 px-3 py-2.5">

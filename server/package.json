@@ -11,7 +11,10 @@
     "lint": "oxlint",
     "test": "tsx --test --test-concurrency=1 src/**/*.test.ts",
     "admin:create": "tsx src/scripts/create-admin.ts",
-    "migrate:interviews": "tsx src/scripts/migrate-appointments-to-interviews.ts"
+    "migrate:interviews": "tsx src/scripts/migrate-appointments-to-interviews.ts",
+    "backfill:interview-recruiter-id": "tsx src/scripts/backfill-interview-recruiter-id.ts",
+    "seed:dev": "tsx src/scripts/seed-dev-data.ts",
+    "seed:dev:remove": "tsx src/scripts/seed-dev-data.ts --remove"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -24,7 +27,9 @@
     "jsonwebtoken": "^9.0.3",
     "luxon": "^3.7.2",
     "mongoose": "^9.8.0",
+    "multer": "^2.2.0",
     "nodemailer": "^9.0.3",
+    "pdf-parse": "^2.4.5",
     "socket.io": "^4.8.3",
     "zod": "^4.4.3"
   },
@@ -34,6 +39,7 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/luxon": "^3.7.2",
+    "@types/multer": "^2.2.0",
     "@types/node": "^24.13.2",
     "@types/nodemailer": "^8.0.1",
     "oxlint": "^1.71.0",

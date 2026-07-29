@@ -10,6 +10,7 @@ import { NowIndicator } from '@/features/calendar/components/NowIndicator'
 import { getDayRange, addPeriod, isSameLocalDay } from '@/lib/dateContext'
 import { HOUR_ROW_HEIGHT, clipRangeToDay, minutesToOffset, offsetForDate, offsetToTimeOfDay } from '@/features/calendar/lib/layout'
 import { computeDefaultBookingStart } from '@/features/booking/constants'
+import { useRealtimeInvalidation } from '@/hooks/useRealtimeInvalidation'
 
 const HOUR_LABELS = Array.from({ length: 24 }, (_, hour) => {
   const period = hour < 12 ? 'AM' : 'PM'
@@ -17,8 +18,8 @@ const HOUR_LABELS = Array.from({ length: 24 }, (_, hour) => {
   return `${displayHour} ${period}`
 })
 
-// Matches the public Day view (TimeCanvas.tsx) — without this, the admin canvas opens
-// scrolled to midnight instead of near the current time / working hours.
+// Without this, the admin canvas opens scrolled to midnight instead of near the current
+// time / working hours.
 const DEFAULT_SCROLL_HOUR = 7
 
 /**
@@ -62,6 +63,7 @@ export function AdminCalendarPage() {
     queryKey: ['admin-blocked-slots', range.start.toISOString(), range.end.toISOString()],
     queryFn: () => fetchAdminBlockedSlots(range.start, range.end),
   })
+  useRealtimeInvalidation([['admin-interviews'], ['admin-blocked-slots']])
 
   function handleRailClick(event: React.MouseEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect()
@@ -73,6 +75,8 @@ export function AdminCalendarPage() {
 
   const interviews = interviewsQuery.data?.interviews ?? []
   const blockedSlots = blockedSlotsQuery.data?.blockedSlots ?? []
+  const isLoading = interviewsQuery.isLoading || blockedSlotsQuery.isLoading
+  const isError = interviewsQuery.isError || blockedSlotsQuery.isError
 
   return (
     <div className="flex h-dvh flex-col bg-paper-50">
@@ -82,7 +86,7 @@ export function AdminCalendarPage() {
         {/* min-h/w-11 = 44px minimum touch target. */}
         <button
           type="button"
-          onClick={() => setAnchorDate((date) => addPeriod('day', date, -1))}
+          onClick={() => setAnchorDate((date) => addPeriod(date, -1))}
           aria-label="Previous day"
           className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-ink-700 hover:bg-paper-100 hover:text-ink-900"
         >
@@ -90,7 +94,7 @@ export function AdminCalendarPage() {
         </button>
         <button
           type="button"
-          onClick={() => setAnchorDate((date) => addPeriod('day', date, 1))}
+          onClick={() => setAnchorDate((date) => addPeriod(date, 1))}
           aria-label="Next day"
           className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-ink-700 hover:bg-paper-100 hover:text-ink-900"
         >
@@ -117,6 +121,15 @@ export function AdminCalendarPage() {
         </button>
       </div>
 
+      {isError && (
+        <p role="alert" className="shrink-0 border-b border-hairline bg-conflict-tint px-4 py-2 text-sm text-conflict sm:px-6">
+          Couldn't load today's schedule. Please try again.
+        </p>
+      )}
+      {isLoading && (
+        <p className="shrink-0 border-b border-hairline px-4 py-2 text-sm text-ink-700 sm:px-6">Loading schedule…</p>
+      )}
+
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-5xl px-4 py-4 sm:px-6">
           <div className="flex">
@@ -127,13 +140,12 @@ export function AdminCalendarPage() {
                 </div>
               ))}
             </div>
-            <div
-              className="relative flex-1 cursor-pointer border-l border-hairline"
-              onClick={handleRailClick}
-              role="button"
-              tabIndex={-1}
-              aria-label="Tap a time to create an interview"
-            >
+            {/* Mouse-only precision time-picking — deliberately no button/keyboard semantics
+                here (a div can't meaningfully expose "which time" via keyboard navigation
+                anyway). The real keyboard-accessible path to the same feature is the "New
+                interview" button above (CLAUDE.md's "admin drag actions must have keyboard
+                alternatives" rule), which opens the same panel with a sensible default time. */}
+            <div className="relative flex-1 cursor-pointer border-l border-hairline" onClick={handleRailClick}>
               <div>
                 {HOUR_LABELS.map((label) => (
                   <div key={label} className="border-t border-hairline first:border-t-0" style={{ height: HOUR_ROW_HEIGHT }} />

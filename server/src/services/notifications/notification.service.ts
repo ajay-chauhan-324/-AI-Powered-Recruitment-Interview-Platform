@@ -140,21 +140,68 @@ export async function sendInterviewerCancellationEmail(
 }
 
 /**
- * Reminder ABSTRACTION only — this function is real and independently testable, but nothing
- * calls it automatically yet. A scheduler that scans for upcoming interviews and calls this,
- * with idempotent send-tracking so a server restart can't double-send, is future work,
- * deliberately out of scope now per "do not over-engineer queues" rather than built as a
- * half-working cron job.
+ * Reminder notification — 30/5-minutes-before-meeting alerts, fired by the scheduler in
+ * server.ts (server/src/services/meetingReminder.service.ts) once each interview crosses each
+ * threshold. `minutesBefore` only changes the wording, never the send logic.
  */
 export async function sendReminderEmail(
   ctx: InterviewNotificationContext,
+  minutesBefore: number,
   transport: NotificationTransport = getNotificationTransport(),
 ): Promise<void> {
   await transport.send({
     to: ctx.candidateEmail,
     subject: `Reminder: upcoming interview — ${ctx.title}`,
-    body: [`Hi ${ctx.candidateName},`, '', 'This is a reminder about your upcoming interview:', ...describeInterview(ctx)].join(
-      '\n',
-    ),
+    body: [
+      `Hi ${ctx.candidateName},`,
+      '',
+      `Your interview starts in about ${minutesBefore} minutes:`,
+      ...describeInterview(ctx),
+    ].join('\n'),
+  })
+}
+
+export async function sendInterviewerReminderEmail(
+  ctx: InterviewNotificationContext & { interviewerEmail: string },
+  minutesBefore: number,
+  transport: NotificationTransport = getNotificationTransport(),
+): Promise<void> {
+  await transport.send({
+    to: ctx.interviewerEmail,
+    subject: `Reminder: upcoming interview — ${ctx.title}`,
+    body: [
+      `Hi ${ctx.interviewerName || 'there'},`,
+      '',
+      `Your interview with ${ctx.candidateName} starts in about ${minutesBefore} minutes:`,
+      ...describeInterview(ctx),
+    ].join('\n'),
+  })
+}
+
+export interface RoundReadyNotificationContext {
+  candidateName: string
+  candidateEmail: string
+  jobTitle: string
+  roundTitle: string
+  round: number
+}
+
+/** Fired when a recruiter shortlists a candidate or passes a round, automatically unlocking
+ * the next one (application.service.ts's unlockNextRound) — replaces the AI as the thing that
+ * tells a candidate it's time to book (this project's "AI should not be responsible for
+ * booking" product decision). */
+export async function sendRoundReadyEmail(
+  ctx: RoundReadyNotificationContext,
+  transport: NotificationTransport = getNotificationTransport(),
+): Promise<void> {
+  await transport.send({
+    to: ctx.candidateEmail,
+    subject: `Interview ready to book: ${ctx.jobTitle}`,
+    body: [
+      `Hi ${ctx.candidateName},`,
+      '',
+      `Your ${ctx.roundTitle} (Round ${ctx.round}) for ${ctx.jobTitle} is ready to book.`,
+      'Head to My Applications to choose a time.',
+    ].join('\n'),
   })
 }
